@@ -1,4 +1,16 @@
 
+shpool (0.7.1) unstable; urgency=low
+
+  Fixed
+
+  * suppress prompt setup in screen restore
+
+  Other
+
+  * reader thread -> shell_to_client thread
+
+ -- Shpool Authors <shpool-eng@google.com>  Thu, 05 Sep 2024 13:07:22 +0000
+
 shpool (0.7.0) unstable; urgency=low
 
   Added
