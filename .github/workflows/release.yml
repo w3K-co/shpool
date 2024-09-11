@@ -63,11 +63,17 @@ jobs:
       - name: List downloaded files
         run: ls -R download
 
+      # Debug step to check the tag reference
+      - name: Print tag reference
+        run: echo ${{ github.ref }}
+
       - name: Create a release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ github.ref }}  # Ensure the correct tag is used
           files: |
             download/x86_64-unknown-linux-gnu/shpool
             download/x86_64-unknown-linux-musl/shpool
+          draft: false  # Ensure it's not a draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
