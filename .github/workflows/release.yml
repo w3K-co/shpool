@@ -27,6 +27,10 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Add aarch64 target
+        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: rustup target add aarch64-unknown-linux-gnu
+
       - name: Add musl target
         if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: rustup target add ${{ matrix.target }}
