@@ -17,13 +17,15 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-      - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
+            sudo apt-get install -y musl-tools musl-dev
+          fi
+          if [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -31,17 +33,8 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
-      - name: Add aarch64 target
-        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
-        run: rustup target add aarch64-unknown-linux-gnu
-
-      - name: Add musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
-        run: rustup target add ${{ matrix.target }}
-
       - name: Build the binary
-        run: |
-          cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
