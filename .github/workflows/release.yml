@@ -10,14 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
+        target: 
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - i686-unknown-linux-gnu
+          - i686-unknown-linux-musl
+          - armv7-unknown-linux-gnueabihf
+          - armv7-unknown-linux-musleabihf
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
       - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Set up Rust
@@ -27,21 +35,18 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Add musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: rustup target add x86_64-unknown-linux-musl
+        if: contains(matrix.target, 'musl')
+        run: rustup target add ${{ matrix.target }}
 
       - name: Build the binary
         run: |
           cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename the binary
-        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
-
       - name: Upload release asset
         uses: actions/upload-artifact@v3
         with:
           name: shpool-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/shpool
 
   release:
     needs: build
@@ -51,31 +56,38 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Download GNU binaries
+      - name: Download binaries
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-gnu
           path: download/x86_64-unknown-linux-gnu
 
-      - name: Download musl binaries
+      - name: Download MUSL binaries
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-musl
           path: download/x86_64-unknown-linux-musl
 
-      - name: List downloaded files
-        run: ls -R download
-
-      - name: Extract tag name
-        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+      - name: Download additional binaries
+        run: |
+          actions/download-artifact@v3 --name shpool-i686-unknown-linux-gnu --path download/i686-unknown-linux-gnu
+          actions/download-artifact@v3 --name shpool-i686-unknown-linux-musl --path download/i686-unknown-linux-musl
+          actions/download-artifact@v3 --name shpool-armv7-unknown-linux-gnueabihf --path download/armv7-unknown-linux-gnueabihf
+          actions/download-artifact@v3 --name shpool-armv7-unknown-linux-musleabihf --path download/armv7-unknown-linux-musleabihf
+          actions/download-artifact@v3 --name shpool-aarch64-unknown-linux-gnu --path download/aarch64-unknown-linux-gnu
+          actions/download-artifact@v3 --name shpool-aarch64-unknown-linux-musl --path download/aarch64-unknown-linux-musl
 
       - name: Create a release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.TAG_NAME }}
           files: |
-            download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
-            download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
-          draft: false
+            download/x86_64-unknown-linux-gnu/shpool
+            download/x86_64-unknown-linux-musl/shpool
+            download/i686-unknown-linux-gnu/shpool
+            download/i686-unknown-linux-musl/shpool
+            download/armv7-unknown-linux-gnueabihf/shpool
+            download/armv7-unknown-linux-musleabihf/shpool
+            download/aarch64-unknown-linux-gnu/shpool
+            download/aarch64-unknown-linux-musl/shpool
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
