@@ -1,25 +1,25 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'  # Triggers the workflow when a new version tag is pushed
+      - 'v*.*.*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
-        target: [
-          x86_64-unknown-linux-gnu,
-          x86_64-unknown-linux-musl,
-          i686-unknown-linux-gnu,
-          i686-unknown-linux-musl,
-          armv7-unknown-linux-gnueabihf,
-          armv7-unknown-linux-musleabihf,
-          aarch64-unknown-linux-gnu,
-          aarch64-unknown-linux-musl
-        ]
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
+          - i686-unknown-linux-gnu
+          - i686-unknown-linux-musl
+          - armv7-unknown-linux-gnueabihf
+          - armv7-unknown-linux-musleabihf
+          - aarch64-unknown-linux-gnu
+          - aarch64-unknown-linux-musl
 
     steps:
       - name: Checkout the code
@@ -29,19 +29,10 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          target: ${{ matrix.target }}
 
-      - name: Add musl target
-        if: contains(matrix.target, 'musl')
-        run: rustup target add ${{ matrix.target }}
-
-      - name: Build the binary
+      - name: Build the project
         run: |
-          if [ "${{ matrix.target }}" == "i686-unknown-linux-musl" ]; then
-            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:i686-musl cargo build --release --target ${{ matrix.target }}
-          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:armv7 cargo build --release --target ${{ matrix.target }}
-          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-musleabihf" ]; then
+          if [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
             docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:armv7-musleabihf cargo build --release --target ${{ matrix.target }}
           elif [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
             docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:aarch64 cargo build --release --target ${{ matrix.target }}
@@ -115,26 +106,3 @@ jobs:
         with:
           name: shpool-aarch64-unknown-linux-musl
           path: download/aarch64-unknown-linux-musl
-
-      - name: List downloaded files
-        run: ls -R download
-
-      - name: Extract tag name
-        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
-      - name: Create a release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ env.TAG_NAME }}
-          files: |
-            download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
-            download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
-            download/i686-unknown-linux-gnu/shpool-i686-unknown-linux-gnu
-            download/i686-unknown-linux-musl/shpool-i686-unknown-linux-musl
-            download/armv7-unknown-linux-gnueabihf/shpool-armv7-unknown-linux-gnueabihf
-            download/armv7-unknown-linux-musleabihf/shpool-armv7-unknown-linux-musleabihf
-            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
-            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
