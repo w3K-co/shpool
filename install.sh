@@ -33,9 +33,9 @@ chmod +x /usr/local/bin/shpool
 echo "Setting up systemd services..."
 mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/"
 curl -fLo "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/shpool.service" \
-    https://raw.githubusercontent.com/w3K-co/shpool/main/systemd/shpool.service
+    https://raw.githubusercontent.com/w3K-co/shpool/master/systemd/shpool.service
 curl -fLo "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/shpool.socket" \
-    https://raw.githubusercontent.com/w3K-co/shpool/main/systemd/shpool.socket
+    https://raw.githubusercontent.com/w3K-co/shpool/master/systemd/shpool.socket
 
 # Modify systemd service to point to the correct binary path
 sed -i "s|/usr/bin/shpool|/usr/local/bin/shpool|" "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/shpool.service"

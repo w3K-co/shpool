@@ -33,7 +33,7 @@ sudo apt update && sudo apt install -y curl wget systemd-user
 To install **shpool** using `curl`, run the following command:
 
 ```bash
-curl -sL https://raw.githubusercontent.com/w3K-co/shpool/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/w3K-co/shpool/master/install.sh | bash
 ```
 
 ##### Installation with `wget`
@@ -41,7 +41,7 @@ curl -sL https://raw.githubusercontent.com/w3K-co/shpool/main/install.sh | bash
 If you prefer `wget`, use this command:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/w3K-co/shpool/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/w3K-co/shpool/master/install.sh | bash
 ```
 
 ##### What the Installation Script Does
