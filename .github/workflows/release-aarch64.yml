@@ -29,6 +29,18 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Set linker for aarch64-unknown-linux-gnu
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
+          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
+
+      - name: Set linker for aarch64-unknown-linux-musl
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          echo '[target.aarch64-unknown-linux-musl]' >> ~/.cargo/config
+          echo 'linker = "musl-gcc"' >> ~/.cargo/config
+
       - name: Add musl target
         if: matrix.target == 'aarch64-unknown-linux-musl'
         run: rustup target add aarch64-unknown-linux-musl
