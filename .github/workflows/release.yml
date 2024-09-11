@@ -11,15 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
       - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install dependencies for aarch64
+        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -28,8 +32,8 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Add musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: rustup target add x86_64-unknown-linux-musl
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: rustup target add ${{ matrix.target }}
 
       - name: Build the binary
         run: |
@@ -52,17 +56,29 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Download GNU binaries
+      - name: Download build artifacts
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-gnu
           path: download/x86_64-unknown-linux-gnu
 
-      - name: Download musl binaries
+      - name: Download build artifacts
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-musl
           path: download/x86_64-unknown-linux-musl
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
 
       - name: List downloaded files
         run: ls -R download
@@ -77,6 +93,8 @@ jobs:
           files: |
             download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
             download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
+            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
+            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
