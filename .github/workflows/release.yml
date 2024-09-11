@@ -37,7 +37,19 @@ jobs:
 
       - name: Build the binary
         run: |
-          docker run --rm -v $(pwd):/home/rust/src ekidd/rust-musl-builder:latest cargo build --release --target ${{ matrix.target }}
+          if [ "${{ matrix.target }}" == "i686-unknown-linux-musl" ]; then
+            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:i686-musl cargo build --release --target ${{ matrix.target }}
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
+            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:armv7 cargo build --release --target ${{ matrix.target }}
+          elif [ "${{ matrix.target }}" == "armv7-unknown-linux-musleabihf" ]; then
+            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:armv7-musleabihf cargo build --release --target ${{ matrix.target }}
+          elif [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
+            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:aarch64 cargo build --release --target ${{ matrix.target }}
+          elif [ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]; then
+            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:aarch64-musl cargo build --release --target ${{ matrix.target }}
+          else
+            docker run --rm -v $(pwd):/home/rust/src ekidd/rust-musl-builder:latest cargo build --release --target ${{ matrix.target }}
+          fi
 
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
