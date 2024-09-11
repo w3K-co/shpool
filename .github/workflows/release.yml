@@ -10,40 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: 
-          - x86_64-unknown-linux-gnu
-          - x86_64-unknown-linux-musl
-          - i686-unknown-linux-gnu
-          - i686-unknown-linux-musl
-          - armv7-unknown-linux-gnueabihf
-          - armv7-unknown-linux-musleabihf
-          - aarch64-unknown-linux-gnu
-          - aarch64-unknown-linux-musl
+        target: [
+          x86_64-unknown-linux-gnu,
+          x86_64-unknown-linux-musl,
+          i686-unknown-linux-gnu,
+          i686-unknown-linux-musl,
+          armv7-unknown-linux-gnueabihf,
+          armv7-unknown-linux-musleabihf,
+          aarch64-unknown-linux-gnu,
+          aarch64-unknown-linux-musl
+        ]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
-            sudo apt-get install -y musl-tools
-          elif [[ "${{ matrix.target }}" == *"armv7"* ]]; then
-            sudo apt-get install -y gcc-arm-linux-gnueabihf
-          elif [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          elif [[ "${{ matrix.target }}" == *"i686"* ]]; then
-            sudo apt-get install -y gcc-multilib
-          else
-            sudo apt-get install -y build-essential
-          fi
+      - name: Install musl-tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: ${{ matrix.target }}
+
+      - name: Add musl target
+        if: contains(matrix.target, 'musl')
+        run: rustup target add ${{ matrix.target }}
 
       - name: Build the binary
         run: |
@@ -66,11 +60,53 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Download artifacts for each architecture
+      - name: Download GNU binaries
         uses: actions/download-artifact@v3
         with:
-          name: shpool-${{ matrix.target }}
-          path: download/${{ matrix.target }}
+          name: shpool-x86_64-unknown-linux-gnu
+          path: download/x86_64-unknown-linux-gnu
+
+      - name: Download musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-x86_64-unknown-linux-musl
+          path: download/x86_64-unknown-linux-musl
+
+      - name: Download i686 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-i686-unknown-linux-gnu
+          path: download/i686-unknown-linux-gnu
+
+      - name: Download i686 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-i686-unknown-linux-musl
+          path: download/i686-unknown-linux-musl
+
+      - name: Download armv7 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-armv7-unknown-linux-gnueabihf
+          path: download/armv7-unknown-linux-gnueabihf
+
+      - name: Download armv7 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-armv7-unknown-linux-musleabihf
+          path: download/armv7-unknown-linux-musleabihf
+
+      - name: Download aarch64 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
+
+      - name: Download aarch64 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
 
       - name: List downloaded files
         run: ls -R download
