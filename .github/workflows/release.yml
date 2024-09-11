@@ -16,11 +16,19 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
+      - name: Install musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: ${{ matrix.target }}
+
+      - name: Add musl target
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: rustup target add x86_64-unknown-linux-musl
 
       - name: Build the binary
         run: |
