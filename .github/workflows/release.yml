@@ -17,22 +17,11 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Install GNU cross-compilation tools (aarch64 only)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Install musl tools (musl targets only)
-        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-
-      - name: Install cross-compilation tools for aarch64 with musl
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: |
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y \
+            musl-tools \
+            gcc-aarch64-linux-gnu \
+            build-essential
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -40,8 +29,23 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
+      - name: Add Rust targets
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" || "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
+            rustup target add aarch64-unknown-linux-gnu
+          fi
+          if [[ "${{ matrix.target }}" == "x86_64-unknown-linux-musl" || "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
+            rustup target add ${{ matrix.target }}
+          fi
+
+      - name: List installed Rust targets
+        run: rustup target list
+
+      - name: Clean build directory
+        run: cargo clean
+
       - name: Build the binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --release --target ${{ matrix.target }} --verbose
 
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
