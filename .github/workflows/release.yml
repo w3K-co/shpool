@@ -17,15 +17,22 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
+      - name: Install GNU cross-compilation tools (aarch64 only)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
           sudo apt-get update
-          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
-            sudo apt-get install -y musl-tools musl-dev
-          fi
-          if [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
-          fi
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Install musl tools (musl targets only)
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Install cross-compilation tools for aarch64 with musl
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
