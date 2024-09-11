@@ -1,23 +1,18 @@
-name: Release
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'  # Triggers the workflow when a new version tag is pushed
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        target:
+        target: 
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
-          - i686-unknown-linux-gnu
-          - i686-unknown-linux-musl
-          - armv7-unknown-linux-gnueabihf
-          - armv7-unknown-linux-musleabihf
           - aarch64-unknown-linux-gnu
           - aarch64-unknown-linux-musl
 
@@ -25,22 +20,22 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
+      - name: Install musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          target: ${{ matrix.target }}
 
-      - name: Build the project
-        run: |
-          if [ "${{ matrix.target }}" == "armv7-unknown-linux-gnueabihf" ]; then
-            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:armv7-musleabihf cargo build --release --target ${{ matrix.target }}
-          elif [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:aarch64 cargo build --release --target ${{ matrix.target }}
-          elif [ "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]; then
-            docker run --rm -v $(pwd):/home/rust/src messense/rust-musl-cross:aarch64-musl cargo build --release --target ${{ matrix.target }}
-          else
-            docker run --rm -v $(pwd):/home/rust/src ekidd/rust-musl-builder:latest cargo build --release --target ${{ matrix.target }}
-          fi
+      - name: Add musl target
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build the binary
+        run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
@@ -70,30 +65,6 @@ jobs:
         with:
           name: shpool-x86_64-unknown-linux-musl
           path: download/x86_64-unknown-linux-musl
-
-      - name: Download i686 GNU binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-i686-unknown-linux-gnu
-          path: download/i686-unknown-linux-gnu
-
-      - name: Download i686 musl binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-i686-unknown-linux-musl
-          path: download/i686-unknown-linux-musl
-
-      - name: Download armv7 GNU binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-armv7-unknown-linux-gnueabihf
-          path: download/armv7-unknown-linux-gnueabihf
-
-      - name: Download armv7 musl binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-armv7-unknown-linux-musleabihf
-          path: download/armv7-unknown-linux-musleabihf
 
       - name: Download aarch64 GNU binaries
         uses: actions/download-artifact@v3
