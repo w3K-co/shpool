@@ -67,10 +67,15 @@ jobs:
       - name: Print tag reference
         run: echo ${{ github.ref }}
 
+      # Strip the 'refs/tags/' prefix to use the correct tag name
+      - name: Extract tag name
+        id: extract_tag
+        run: echo "::set-output name=TAG_NAME::${GITHUB_REF/refs\/tags\//}"
+
       - name: Create a release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref }}  # Ensure the correct tag is used
+          tag_name: ${{ steps.extract_tag.outputs.TAG_NAME }}  # Use the stripped tag
           files: |
             download/x86_64-unknown-linux-gnu/shpool
             download/x86_64-unknown-linux-musl/shpool
