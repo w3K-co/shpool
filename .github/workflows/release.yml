@@ -52,17 +52,19 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-gnu
+          path: download/x86_64-unknown-linux-gnu
 
       - name: Download musl binaries
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-musl
+          path: download/x86_64-unknown-linux-musl
 
       - name: Create a release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            target/x86_64-unknown-linux-gnu/release/shpool
-            target/x86_64-unknown-linux-musl/release/shpool
+            download/x86_64-unknown-linux-gnu/shpool
+            download/x86_64-unknown-linux-musl/shpool
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
