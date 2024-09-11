@@ -4,20 +4,21 @@ on:
   push:
     tags:
       - 'v*'  # Triggers the workflow when a new version tag is pushed
+  workflow_dispatch:  # Allows manual execution of the workflow
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, arm64-unknown-linux-gnu, arm64-unknown-linux-musl]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
       - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'arm64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Set up Rust
@@ -27,7 +28,7 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Add musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'arm64-unknown-linux-musl'
+        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
         run: rustup target add ${{ matrix.target }}
 
       - name: Build the binary
@@ -66,14 +67,14 @@ jobs:
       - name: Download arm64 GNU binaries
         uses: actions/download-artifact@v3
         with:
-          name: shpool-arm64-unknown-linux-gnu
-          path: download/arm64-unknown-linux-gnu
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
 
       - name: Download arm64 musl binaries
         uses: actions/download-artifact@v3
         with:
-          name: shpool-arm64-unknown-linux-musl
-          path: download/arm64-unknown-linux-musl
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
 
       - name: List downloaded files
         run: ls -R download
@@ -88,8 +89,8 @@ jobs:
           files: |
             download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
             download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
-            download/arm64-unknown-linux-gnu/shpool-arm64-unknown-linux-gnu
-            download/arm64-unknown-linux-musl/shpool-arm64-unknown-linux-musl
+            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
+            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
