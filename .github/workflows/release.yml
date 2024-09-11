@@ -11,20 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y \
-            musl-tools \
-            gcc-aarch64-linux-gnu \
-            libc6-dev-arm64-cross \
-            build-essential \
-            libssl-dev \
-            pkg-config
+      - name: Install musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -32,21 +27,13 @@ jobs:
           toolchain: stable
           target: ${{ matrix.target }}
 
-      - name: Add Rust targets
-        run: |
-          rustup target add aarch64-unknown-linux-gnu
-          rustup target add aarch64-unknown-linux-musl
-          rustup target add x86_64-unknown-linux-musl
-          rustup target add x86_64-unknown-linux-gnu
-
-      - name: List installed Rust targets
-        run: rustup target list
-
-      - name: Clean build directory
-        run: cargo clean
+      - name: Add musl target
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: rustup target add x86_64-unknown-linux-musl
 
       - name: Build the binary
-        run: cargo build --release --target ${{ matrix.target }} --verbose
+        run: |
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
@@ -77,18 +64,6 @@ jobs:
           name: shpool-x86_64-unknown-linux-musl
           path: download/x86_64-unknown-linux-musl
 
-      - name: Download arm64 GNU binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-aarch64-unknown-linux-gnu
-          path: download/aarch64-unknown-linux-gnu
-
-      - name: Download arm64 musl binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-aarch64-unknown-linux-musl
-          path: download/aarch64-unknown-linux-musl
-
       - name: List downloaded files
         run: ls -R download
 
@@ -102,8 +77,6 @@ jobs:
           files: |
             download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
             download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
-            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
-            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
