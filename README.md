@@ -10,6 +10,56 @@ that `shpool` does not break native scrollback or copy-paste.
 
 ## Installation
 
+### Installing Binary Build
+
+#### Installation
+
+You can install **shpool** by using either `curl` or `wget` to download and run the installation script. The script will automatically detect your system’s libc type (`glibc` or `musl`) and download the appropriate binary.
+
+##### Dependencies
+Before installing, ensure that the following packages are installed on your system:
+
+- `curl` or `wget`
+- `systemd-user`
+
+Use the following command to install the necessary dependencies on Debian-based systems:
+
+```bash
+sudo apt update && sudo apt install -y curl wget systemd-user
+```
+
+##### Installation with `curl`
+
+To install **shpool** using `curl`, run the following command:
+
+```bash
+curl -sL https://raw.githubusercontent.com/w3K-co/shpool/main/install.sh | bash
+```
+
+##### Installation with `wget`
+
+If you prefer `wget`, use this command:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/w3K-co/shpool/main/install.sh | bash
+```
+
+##### What the Installation Script Does
+
+1. Detects the system’s libc (`glibc` or `musl`).
+2. Downloads the appropriate binary from the latest GitHub release.
+3. Installs the binary into `/usr/local/bin/`.
+4. Sets up systemd service and socket files to manage **shpool** as a background service.
+5. Enables and starts the systemd socket for **shpool**.
+6. Enables lingering to keep **shpool** running even after logout.
+
+Once installed, you can start using **shpool** with:
+
+```bash
+shpool attach <session_name>
+```
+
+
 ### Installing from crates.io
 
 #### Using systemd to run the daemon
