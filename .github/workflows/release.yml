@@ -1,16 +1,16 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'  # Triggers the workflow when a new version tag is pushed
+      - 'v*'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: 
+        target:
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
           - i686-unknown-linux-gnu
@@ -19,75 +19,40 @@ jobs:
           - armv7-unknown-linux-musleabihf
           - aarch64-unknown-linux-gnu
           - aarch64-unknown-linux-musl
-
     steps:
-      - name: Checkout the code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v2
 
-      - name: Install musl-tools
-        if: contains(matrix.target, 'musl')
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-
-      - name: Add musl target
-        if: contains(matrix.target, 'musl')
+      - name: Install Rust toolchain
         run: rustup target add ${{ matrix.target }}
 
-      - name: Build the binary
-        run: |
-          cargo build --release --target ${{ matrix.target }}
+      - name: Install dependencies
+        run: sudo apt-get install gcc-multilib gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu
 
-      - name: Upload release asset
-        uses: actions/upload-artifact@v3
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v2
         with:
-          name: shpool-${{ matrix.target }}
+          name: ${{ matrix.target }}
           path: target/${{ matrix.target }}/release/shpool
-
+          
   release:
     needs: build
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout the code
-        uses: actions/checkout@v3
-
-      - name: Download binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-x86_64-unknown-linux-gnu
-          path: download/x86_64-unknown-linux-gnu
-
-      - name: Download MUSL binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-x86_64-unknown-linux-musl
-          path: download/x86_64-unknown-linux-musl
-
-      - name: Download additional binaries
-        run: |
-          actions/download-artifact@v3 --name shpool-i686-unknown-linux-gnu --path download/i686-unknown-linux-gnu
-          actions/download-artifact@v3 --name shpool-i686-unknown-linux-musl --path download/i686-unknown-linux-musl
-          actions/download-artifact@v3 --name shpool-armv7-unknown-linux-gnueabihf --path download/armv7-unknown-linux-gnueabihf
-          actions/download-artifact@v3 --name shpool-armv7-unknown-linux-musleabihf --path download/armv7-unknown-linux-musleabihf
-          actions/download-artifact@v3 --name shpool-aarch64-unknown-linux-gnu --path download/aarch64-unknown-linux-gnu
-          actions/download-artifact@v3 --name shpool-aarch64-unknown-linux-musl --path download/aarch64-unknown-linux-musl
-
-      - name: Create a release
+      - uses: actions/checkout@v2
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            download/x86_64-unknown-linux-gnu/shpool
-            download/x86_64-unknown-linux-musl/shpool
-            download/i686-unknown-linux-gnu/shpool
-            download/i686-unknown-linux-musl/shpool
-            download/armv7-unknown-linux-gnueabihf/shpool
-            download/armv7-unknown-linux-musleabihf/shpool
-            download/aarch64-unknown-linux-gnu/shpool
-            download/aarch64-unknown-linux-musl/shpool
+            target/x86_64-unknown-linux-gnu/release/shpool
+            target/x86_64-unknown-linux-musl/release/shpool
+            target/i686-unknown-linux-gnu/release/shpool
+            target/i686-unknown-linux-musl/release/shpool
+            target/armv7-unknown-linux-gnueabihf/release/shpool
+            target/armv7-unknown-linux-musleabihf/release/shpool
+            target/aarch64-unknown-linux-gnu/release/shpool
+            target/aarch64-unknown-linux-musl/release/shpool
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
