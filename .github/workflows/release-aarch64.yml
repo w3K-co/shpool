@@ -1,4 +1,4 @@
-name: Build and Release
+name: Build and Release aarch64
 
 on:
   push:
@@ -11,14 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
+        target: [aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
       - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: matrix.target == 'aarch64-unknown-linux-musl'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Set up Rust
@@ -28,8 +28,8 @@ jobs:
           target: ${{ matrix.target }}
 
       - name: Add musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: rustup target add x86_64-unknown-linux-musl
+        if: matrix.target == 'aarch64-unknown-linux-musl'
+        run: rustup target add aarch64-unknown-linux-musl
 
       - name: Build the binary
         run: |
@@ -55,14 +55,14 @@ jobs:
       - name: Download GNU binaries
         uses: actions/download-artifact@v3
         with:
-          name: shpool-x86_64-unknown-linux-gnu
-          path: download/x86_64-unknown-linux-gnu
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
 
       - name: Download musl binaries
         uses: actions/download-artifact@v3
         with:
-          name: shpool-x86_64-unknown-linux-musl
-          path: download/x86_64-unknown-linux-musl
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
 
       - name: List downloaded files
         run: ls -R download
@@ -75,8 +75,8 @@ jobs:
         with:
           tag_name: ${{ env.TAG_NAME }}
           files: |
-            download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
-            download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
+            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
+            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
