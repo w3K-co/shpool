@@ -1,16 +1,16 @@
-name: Release
+name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*'  # Triggers the workflow when a new version tag is pushed
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target:
+        target: 
           - x86_64-unknown-linux-gnu
           - x86_64-unknown-linux-musl
           - i686-unknown-linux-gnu
@@ -19,40 +19,122 @@ jobs:
           - armv7-unknown-linux-musleabihf
           - aarch64-unknown-linux-gnu
           - aarch64-unknown-linux-musl
+
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout the code
+        uses: actions/checkout@v3
 
-      - name: Install Rust toolchain
-        run: rustup target add ${{ matrix.target }}
+      - name: Install dependencies for specific targets
+        run: |
+          sudo apt-get update
+          if [[ "${{ matrix.target }}" == *"musl"* ]]; then
+            sudo apt-get install -y musl-tools
+          elif [[ "${{ matrix.target }}" == *"armv7"* ]]; then
+            sudo apt-get install -y gcc-arm-linux-gnueabihf
+          elif [[ "${{ matrix.target }}" == *"aarch64"* ]]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          elif [[ "${{ matrix.target }}" == *"i686"* ]]; then
+            sudo apt-get install -y gcc-multilib
+          fi
 
-      - name: Install dependencies
-        run: sudo apt-get install gcc-multilib gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu
-
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Upload binary
-        uses: actions/upload-artifact@v2
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
         with:
-          name: ${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/shpool
-          
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Add musl target
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Build the binary
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename the binary
+        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v3
+        with:
+          name: shpool-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+
   release:
     needs: build
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v2
-      - name: Create GitHub Release
+      - name: Checkout the code
+        uses: actions/checkout@v3
+
+      - name: Download GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-x86_64-unknown-linux-gnu
+          path: download/x86_64-unknown-linux-gnu
+
+      - name: Download musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-x86_64-unknown-linux-musl
+          path: download/x86_64-unknown-linux-musl
+
+      - name: Download i686 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-i686-unknown-linux-gnu
+          path: download/i686-unknown-linux-gnu
+
+      - name: Download i686 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-i686-unknown-linux-musl
+          path: download/i686-unknown-linux-musl
+
+      - name: Download armv7 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-armv7-unknown-linux-gnueabihf
+          path: download/armv7-unknown-linux-gnueabihf
+
+      - name: Download armv7 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-armv7-unknown-linux-musleabihf
+          path: download/armv7-unknown-linux-musleabihf
+
+      - name: Download aarch64 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
+
+      - name: Download aarch64 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
+
+      - name: List downloaded files
+        run: ls -R download
+
+      - name: Extract tag name
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Create a release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ env.TAG_NAME }}
           files: |
-            target/x86_64-unknown-linux-gnu/release/shpool
-            target/x86_64-unknown-linux-musl/release/shpool
-            target/i686-unknown-linux-gnu/release/shpool
-            target/i686-unknown-linux-musl/release/shpool
-            target/armv7-unknown-linux-gnueabihf/release/shpool
-            target/armv7-unknown-linux-musleabihf/release/shpool
-            target/aarch64-unknown-linux-gnu/release/shpool
-            target/aarch64-unknown-linux-musl/release/shpool
+            download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
+            download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
+            download/i686-unknown-linux-gnu/shpool-i686-unknown-linux-gnu
+            download/i686-unknown-linux-musl/shpool-i686-unknown-linux-musl
+            download/armv7-unknown-linux-gnueabihf/shpool-armv7-unknown-linux-gnueabihf
+            download/armv7-unknown-linux-musleabihf/shpool-armv7-unknown-linux-musleabihf
+            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
+            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
