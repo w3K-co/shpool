@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl, i686-unknown-linux-gnu, armv7-unknown-linux-gnueabihf]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
       - name: Checkout the code
@@ -22,11 +22,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - name: Install cross for cross-compilation
-        if: contains(matrix.target, 'aarch64') || contains(matrix.target, 'armv7') || contains(matrix.target, 'i686')
+        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
         run: cargo install cross
 
-      - name: Set up Rust for x86_64 and i686
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'i686-unknown-linux-gnu'
+      - name: Set up Rust for x86_64
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -36,12 +36,12 @@ jobs:
         if: matrix.target == 'x86_64-unknown-linux-musl'
         run: rustup target add x86_64-unknown-linux-musl
 
-      - name: Build x86_64 and i686 binaries
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'i686-unknown-linux-gnu'
+      - name: Build x86_64 binaries
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build aarch64 and armv7 binaries using cross
-        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl' || matrix.target == 'armv7-unknown-linux-gnueabihf'
+      - name: Build aarch64 binaries using cross
+        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
         run: cross build --release --target ${{ matrix.target }}
 
       - name: Rename the binary
@@ -73,12 +73,6 @@ jobs:
           name: shpool-x86_64-unknown-linux-musl
           path: download/x86_64-unknown-linux-musl
 
-      - name: Download i686 GNU binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-i686-unknown-linux-gnu
-          path: download/i686-unknown-linux-gnu
-
       - name: Download aarch64 GNU binaries
         uses: actions/download-artifact@v3
         with:
@@ -90,12 +84,6 @@ jobs:
         with:
           name: shpool-aarch64-unknown-linux-musl
           path: download/aarch64-unknown-linux-musl
-
-      - name: Download armv7 binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: shpool-armv7-unknown-linux-gnueabihf
-          path: download/armv7-unknown-linux-gnueabihf
 
       - name: List downloaded files
         run: ls -R download
@@ -110,10 +98,8 @@ jobs:
           files: |
             download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
             download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
-            download/i686-unknown-linux-gnu/shpool-i686-unknown-linux-gnu
             download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
             download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
-            download/armv7-unknown-linux-gnueabihf/shpool-armv7-unknown-linux-gnueabihf
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
