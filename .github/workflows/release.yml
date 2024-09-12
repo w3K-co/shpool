@@ -11,29 +11,38 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl, i686-unknown-linux-gnu, i686-unknown-linux-musl, armv7-unknown-linux-gnueabihf, armv7-unknown-linux-musleabihf]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
       - name: Install musl-tools
-        if: matrix.target == 'x86_64-unknown-linux-musl'
+        if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      - name: Set up Rust
+      - name: Install cross for cross-compilation
+        if: contains(matrix.target, 'aarch64') || contains(matrix.target, 'armv7') || contains(matrix.target, 'i686')
+        run: cargo install cross
+
+      - name: Set up Rust for x86_64 and i686
+        if: contains(matrix.target, 'x86_64') || contains(matrix.target, 'i686')
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           target: ${{ matrix.target }}
 
-      - name: Add musl target
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: rustup target add x86_64-unknown-linux-musl
+      - name: Add musl target for x86_64, i686, armv7
+        if: contains(matrix.target, 'musl')
+        run: rustup target add ${{ matrix.target }}
 
-      - name: Build the binary
-        run: |
-          cargo build --release --target ${{ matrix.target }}
+      - name: Build x86_64, i686 binaries
+        if: contains(matrix.target, 'x86_64') || contains(matrix.target, 'i686')
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build aarch64, armv7 binaries using cross
+        if: contains(matrix.target, 'aarch64') || contains(matrix.target, 'armv7')
+        run: cross build --release --target ${{ matrix.target }}
 
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
@@ -52,7 +61,7 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Download GNU binaries
+      - name: Download binaries
         uses: actions/download-artifact@v3
         with:
           name: shpool-x86_64-unknown-linux-gnu
@@ -63,6 +72,42 @@ jobs:
         with:
           name: shpool-x86_64-unknown-linux-musl
           path: download/x86_64-unknown-linux-musl
+
+      - name: Download i686 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-i686-unknown-linux-gnu
+          path: download/i686-unknown-linux-gnu
+
+      - name: Download i686 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-i686-unknown-linux-musl
+          path: download/i686-unknown-linux-musl
+
+      - name: Download aarch64 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
+
+      - name: Download aarch64 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
+
+      - name: Download armv7 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-armv7-unknown-linux-gnueabihf
+          path: download/armv7-unknown-linux-gnueabihf
+
+      - name: Download armv7 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-armv7-unknown-linux-musleabihf
+          path: download/armv7-unknown-linux-musleabihf
 
       - name: List downloaded files
         run: ls -R download
@@ -77,6 +122,12 @@ jobs:
           files: |
             download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
             download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
+            download/i686-unknown-linux-gnu/shpool-i686-unknown-linux-gnu
+            download/i686-unknown-linux-musl/shpool-i686-unknown-linux-musl
+            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
+            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
+            download/armv7-unknown-linux-gnueabihf/shpool-armv7-unknown-linux-gnueabihf
+            download/armv7-unknown-linux-musleabihf/shpool-armv7-unknown-linux-musleabihf
           draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
