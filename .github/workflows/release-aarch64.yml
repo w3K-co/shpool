@@ -9,58 +9,35 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y \
-            musl-tools \
-            gcc-aarch64-linux-gnu \
-            libc6-dev-arm64-cross
+      - name: Install cross for cross-compilation
+        run: cargo install cross
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-
-      - name: Set linker for aarch64-unknown-linux-gnu
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
+      - name: Build with cross for aarch64-unknown-linux-gnu
         run: |
-          echo '[target.aarch64-unknown-linux-gnu]' >> ~/.cargo/config
-          echo 'linker = "aarch64-linux-gnu-gcc"' >> ~/.cargo/config
+          cross build --release --target aarch64-unknown-linux-gnu
 
-      - name: Set linker for aarch64-unknown-linux-musl
-        if: matrix.target == 'aarch64-unknown-linux-musl'
+      - name: Build with cross for aarch64-unknown-linux-musl
         run: |
-          echo '[target.aarch64-unknown-linux-musl]' >> ~/.cargo/config
-          echo 'linker = "musl-gcc"' >> ~/.cargo/config
+          cross build --release --target aarch64-unknown-linux-musl
 
-      - name: Add musl target
-        if: matrix.target == 'aarch64-unknown-linux-musl'
-        run: rustup target add aarch64-unknown-linux-musl
+      - name: Rename the GNU binary
+        run: mv target/aarch64-unknown-linux-gnu/release/shpool target/aarch64-unknown-linux-gnu/release/shpool-aarch64-unknown-linux-gnu
 
-      - name: Add gnu target
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: rustup target add aarch64-unknown-linux-gnu
-
-      - name: Build the binary
-        run: |
-          cargo build --release --target ${{ matrix.target }} --verbose
-
-      - name: Rename the binary
-        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+      - name: Rename the musl binary
+        run: mv target/aarch64-unknown-linux-musl/release/shpool target/aarch64-unknown-linux-musl/release/shpool-aarch64-unknown-linux-musl
 
       - name: Upload release asset
         uses: actions/upload-artifact@v3
         with:
           name: shpool-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+          path: |
+            target/aarch64-unknown-linux-gnu/release/shpool-aarch64-unknown-linux-gnu
+            target/aarch64-unknown-linux-musl/release/shpool-aarch64-unknown-linux-musl
 
   release:
     needs: build
@@ -70,7 +47,7 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v3
 
-      - name: Download GNU binaries
+      - name: Download binaries
         uses: actions/download-artifact@v3
         with:
           name: shpool-aarch64-unknown-linux-gnu
