@@ -278,10 +278,10 @@ fn two_at_once() -> anyhow::Result<()> {
 
         let mut attach_proc1 =
             daemon_proc.attach("sh1", Default::default()).context("starting sh1")?;
+        let mut line_matcher1 = attach_proc1.line_matcher()?;
+
         let mut attach_proc2 =
             daemon_proc.attach("sh2", Default::default()).context("starting sh2")?;
-
-        let mut line_matcher1 = attach_proc1.line_matcher()?;
         let mut line_matcher2 = attach_proc2.line_matcher()?;
 
         attach_proc1.run_cmd("echo proc1").context("proc1 echo")?;
@@ -554,7 +554,8 @@ fn default_keybinding_detach() -> anyhow::Result<()> {
         lm1.scan_until_re("someval$")?;
 
         a1.run_raw_cmd(vec![0, 17])?; // Ctrl-Space Ctrl-q
-        a1.proc.wait()?;
+        let exit_status = a1.proc.wait()?;
+        assert!(exit_status.success());
 
         waiter.wait_event("daemon-bidi-stream-done")?;
 
@@ -1276,16 +1277,10 @@ fn motd_pager() -> anyhow::Result<()> {
             let mut f = fs::File::create(&motd_file)?;
             f.write_all("MOTD_MSG\n".as_bytes())?;
         }
-        let config_tmpl = fs::read_to_string(support::testdata_file("motd_pager.toml.tmpl"))?;
-        let config_contents = config_tmpl.replace("TMP_MOTD_MSG_FILE", motd_file.to_str().unwrap());
         let config_file = tmp_dir_path.join("motd_pager.toml");
-        {
-            let mut f = fs::File::create(&config_file)?;
-            f.write_all(config_contents.as_bytes())?;
-        }
 
         // spawn a daemon based on our custom config
-        let daemon_proc = support::daemon::Proc::new(
+        let mut daemon_proc = support::daemon::Proc::new(
             &config_file,
             DaemonArgs {
                 extra_env: vec![(String::from("TERM"), String::from("xterm"))],
@@ -1293,6 +1288,18 @@ fn motd_pager() -> anyhow::Result<()> {
             },
         )
         .context("starting daemon proc")?;
+
+        // Update the config and wait for it to get picked up.
+        // Doing this after the daemon starts tests to make sure
+        // that we can handle dynamic config changes to the
+        // motd settings.
+        let config_tmpl = fs::read_to_string(support::testdata_file("motd_pager.toml.tmpl"))?;
+        let config_contents = config_tmpl.replace("TMP_MOTD_MSG_FILE", motd_file.to_str().unwrap());
+        {
+            let mut f = fs::File::create(&config_file)?;
+            f.write_all(config_contents.as_bytes())?;
+        }
+        daemon_proc.await_event("daemon-reload-config")?;
 
         let stdout_str = snapshot_attach_output(
             &daemon_proc,
@@ -1427,6 +1434,51 @@ fn motd_debounced_pager_unbounces() -> anyhow::Result<()> {
             time::Duration::from_millis(500),
             "sh2",
         )?;
+        assert!(stdout_file_re.is_match(&stdout_str));
+
+        Ok(())
+    })
+}
+
+#[test]
+#[timeout(30000)]
+fn motd_env_test_pager_preserves_term_env_var() -> anyhow::Result<()> {
+    support::dump_err(|| {
+        // set up the config
+        let tmp_dir = tempfile::TempDir::with_prefix("shpool-test-config")?;
+        let tmp_dir_path = if env::var("SHPOOL_LEAVE_TEST_LOGS").is_ok() {
+            // leave the tmp files around for later inspection if we have been asked
+            // to leave the logs in place.
+            tmp_dir.into_path()
+        } else {
+            PathBuf::from(tmp_dir.path())
+        };
+        eprintln!("building config in {:?}", tmp_dir_path);
+        let config_tmpl =
+            fs::read_to_string(support::testdata_file("motd_pager_env_test.toml.tmpl"))?;
+        let config_contents = config_tmpl.replace(
+            "MOTD_ENV_TEST_SCRIPT",
+            support::testdata_file("motd_env_test_script.sh").to_str().unwrap(),
+        );
+        let config_file = tmp_dir_path.join("motd_pager.toml");
+        {
+            let mut f = fs::File::create(&config_file)?;
+            f.write_all(config_contents.as_bytes())?;
+        }
+
+        // spawn a daemon based on our custom config
+        let daemon_proc = support::daemon::Proc::new(&config_file, DaemonArgs::default())
+            .context("starting daemon proc")?;
+
+        let stdout_str = snapshot_attach_output(
+            &daemon_proc,
+            &config_file,
+            time::Duration::from_millis(500),
+            "sh1",
+        )?;
+        // Scan for a fragment of less output.
+        eprintln!("STDOUT: {}", stdout_str);
+        let stdout_file_re = Regex::new(".*TERM=testval.*")?;
         assert!(stdout_file_re.is_match(&stdout_str));
 
         Ok(())

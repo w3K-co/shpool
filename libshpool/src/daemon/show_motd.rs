@@ -34,25 +34,26 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct DailyMessenger {
     motd_resolver: motd::Resolver,
-    mode: config::MotdDisplayMode,
-    args: Option<Vec<String>>,
+    config: config::Manager,
     debouncer: Option<Debouncer>,
 }
 
 impl DailyMessenger {
     /// Make a new DailyMessenger.
-    pub fn new(mode: config::MotdDisplayMode, args: Option<Vec<String>>) -> anyhow::Result<Self> {
-        let debouncer = match &mode {
-            config::MotdDisplayMode::Pager { show_every: Some(dur), .. } => {
-                Some(Debouncer::new(duration::parse(dur).context("parsing debounce dur")?))
+    pub fn new(config: config::Manager) -> anyhow::Result<Self> {
+        let debouncer = {
+            let config_ref = config.get();
+            match config_ref.motd.clone().unwrap_or_default() {
+                config::MotdDisplayMode::Pager { show_every: Some(dur), .. } => {
+                    Some(Debouncer::new(duration::parse(&dur).context("parsing debounce dur")?))
+                }
+                _ => None,
             }
-            _ => None,
         };
 
         Ok(DailyMessenger {
             motd_resolver: motd::Resolver::new().context("creating motd resolver")?,
-            mode,
-            args,
+            config,
             debouncer,
         })
     }
@@ -63,7 +64,10 @@ impl DailyMessenger {
         mut stream: W,
         term_db: &termini::TermInfo,
     ) -> anyhow::Result<()> {
-        assert!(matches!(self.mode, config::MotdDisplayMode::Dump));
+        assert!(matches!(
+            self.config.get().motd.clone().unwrap_or_default(),
+            config::MotdDisplayMode::Dump
+        ));
 
         let raw_motd_value = self.raw_motd_value(term_db)?;
 
@@ -90,6 +94,10 @@ impl DailyMessenger {
         ctl_slot: Arc<Mutex<Option<PagerCtl>>>,
         // The size of the tty to start off with
         init_tty_size: TtySize,
+        // The env that the shell will be launched with, we want to use
+        // the same env for the pager program (mostly because we want
+        // to pass TERM along correctly).
+        shell_env: &[(String, String)],
     ) -> anyhow::Result<Option<TtySize>> {
         if let Some(debouncer) = &self.debouncer {
             if !debouncer.should_fire()? {
@@ -97,7 +105,9 @@ impl DailyMessenger {
             }
         }
 
-        let pager_bin = if let config::MotdDisplayMode::Pager { bin, .. } = &self.mode {
+        let pager_bin = if let config::MotdDisplayMode::Pager { bin, .. } =
+            self.config.get().motd.clone().unwrap_or_default()
+        {
             bin
         } else {
             return Err(anyhow!("internal error: wrong mode to display in pager"));
@@ -109,14 +119,19 @@ impl DailyMessenger {
 
         let pager = Pager::new(pager_bin.to_string());
 
-        let final_size =
-            pager.display(client_stream, ctl_slot, init_tty_size, motd_value.as_str())?;
+        let final_size = pager.display(
+            client_stream,
+            ctl_slot,
+            init_tty_size,
+            motd_value.as_str(),
+            shell_env,
+        )?;
         Ok(Some(final_size))
     }
 
     fn motd_value(&self) -> anyhow::Result<String> {
         self.motd_resolver
-            .value(match &self.args {
+            .value(match &self.config.get().motd_args {
                 Some(args) => {
                     let mut args = args.clone();
                     // On debian based systems we need to set noupdate in order to get
