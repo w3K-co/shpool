@@ -79,51 +79,60 @@ pub fn maybe_inject_prefix(
     debug!("sniffed shell type: {:?}", shell_type);
 
     // now actually inject the prompt
-    let modified_prompt = modify_prompt(&prompt_prefix, session_name);
+    let prompt_prefix = prompt_prefix.replace("$SHPOOL_SESSION_NAME", session_name);
 
-    let mut script = match (modified_prompt.as_str(), shell_type) {
-        (_, Ok(KnownShell::Bash)) => format!(
-            r#"
-            if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
-               PS1="{}"
-            else
-               SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
-               SHPOOL__OLD_PS1="${{PS1}}"
-               function __shpool__prompt_command() {{
-                  PS1="${{SHPOOL__OLD_PS1}}"
-                  for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
-                  do
-                    ${{prompt_hook}}
-                  done
-                  PS1="{}"
-               }}
-               PROMPT_COMMAND=__shpool__prompt_command
-            fi
-        "#,
-            modified_prompt, modified_prompt
-        ),
-        (_, Ok(KnownShell::Zsh)) => format!(
-            r#"
-            typeset -a precmd_functions
-            SHPOOL__OLD_PROMPT="${{PROMPT}}"
-            function __shpool__reset_rprompt() {{
-                PROMPT="${{SHPOOL__OLD_PROMPT}}"
-            }}
-            precmd_functions[1,0]=(__shpool__reset_rprompt)
-            function __shpool__prompt_command() {{
-               PROMPT="{}"
-            }}
-            precmd_functions+=(__shpool__prompt_command)
-        "#,
-            modified_prompt
-        ),
-        (_, Ok(KnownShell::Fish)) => format!(
-            r#"
-            functions --copy fish_prompt shpool__old_prompt
-            function fish_prompt; echo -n "{} "; shpool__old_prompt; end
-        "#,
-            modified_prompt
-        ),
+    let mut script = match (prompt_prefix.as_str(), shell_type) {
+        (_, Ok(KnownShell::Bash)) => {
+            let modified_prompt = modify_prompt("${PS1}", session_name);
+            format!(
+                r#"
+                if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
+                   PS1="{}"
+                else
+                   SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
+                   SHPOOL__OLD_PS1="${{PS1}}"
+                   function __shpool__prompt_command() {{
+                      PS1="${{SHPOOL__OLD_PS1}}"
+                      for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
+                      do
+                        ${{prompt_hook}}
+                      done
+                      PS1="{}"
+                   }}
+                   PROMPT_COMMAND=__shpool__prompt_command
+                fi
+            "#,
+                modified_prompt, modified_prompt
+            )
+        }
+        (_, Ok(KnownShell::Zsh)) => {
+            let modified_prompt = modify_prompt("${PROMPT}", session_name);
+            format!(
+                r#"
+                typeset -a precmd_functions
+                SHPOOL__OLD_PROMPT="${{PROMPT}}"
+                function __shpool__reset_rprompt() {{
+                    PROMPT="${{SHPOOL__OLD_PROMPT}}"
+                }}
+                precmd_functions[1,0]=(__shpool__reset_rprompt)
+                function __shpool__prompt_command() {{
+                   PROMPT="{}"
+                }}
+                precmd_functions+=(__shpool__prompt_command)
+            "#,
+                modified_prompt
+            )
+        }
+        (_, Ok(KnownShell::Fish)) => {
+            let modified_prompt = modify_prompt("shpool__old_prompt", session_name);
+            format!(
+                r#"
+                functions --copy fish_prompt shpool__old_prompt
+                function fish_prompt; echo -n "{} "; shpool__old_prompt; end
+            "#,
+                modified_prompt
+            )
+        }
         (_, Err(e)) => {
             warn!("could not sniff shell: {}", e);
 
