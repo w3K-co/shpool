@@ -66,10 +66,10 @@ pub fn maybe_inject_prefix(
 			if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
 				if [[ "$PS1" == *$'\n'* ]]; then
 					# Multi-line prompt
-					PS1="${{PS1}} [ {session_name} ]"
+					PS1="${{PS1%%$'\\n'*}} [{session_name}]$'\n'${{PS1##*$'\\n'}}"
 				else
 					# Single-line prompt
-					PS1="[ {session_name} ]"
+					PS1="[{session_name}]\n${{PS1}}"
 				fi
 			else
 				SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
@@ -77,10 +77,10 @@ pub fn maybe_inject_prefix(
 				function __shpool__prompt_command() {{
 					if [[ "$PS1" == *$'\n'* ]]; then
 						# Multi-line prompt
-						PS1="${{SHPOOL__OLD_PS1}} [ {session_name} ]"
+						PS1="${{PS1%%$'\\n'*}} [{session_name}]$'\n'${{SHPOOL__OLD_PS1##*$'\\n'}}"
 					else
 						# Single-line prompt
-						PS1="[ {session_name} ]"
+						PS1="[{session_name}]\n${{SHPOOL__OLD_PS1}}"
 					fi
 					for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
 					do
@@ -102,10 +102,10 @@ pub fn maybe_inject_prefix(
 			function __shpool__prompt_command() {{
 				if [[ "$PROMPT" == *$'\n'* ]]; then
 					# Multi-line prompt
-					PROMPT="${{SHPOOL__OLD_PROMPT}} [ {session_name} ]"
+					PROMPT="${{PROMPT%%$'\\n'*}} [{session_name}]$'\n'${{SHPOOL__OLD_PROMPT##*$'\\n'}}"
 				else
 					# Single-line prompt
-					PROMPT="[ {session_name} ]"
+					PROMPT="[{session_name}]\n${{SHPOOL__OLD_PROMPT}}"
 				fi
 			}}
 			precmd_functions+=(__shpool__prompt_command)
@@ -117,10 +117,10 @@ pub fn maybe_inject_prefix(
 			function fish_prompt
 				if test (count $PROMPT) -gt 1
 					# Multi-line prompt
-					echo -n "$SHPOOL__OLD_PROMPT [ {session_name} ]"
+					echo -n "$SHPOOL__OLD_PROMPT [{session_name}]"
 				else
 					# Single-line prompt
-					echo -n "[ {session_name} ]"
+					echo -n "[{session_name}]\n$SHPOOL__OLD_PROMPT"
 				end
 				shpool__old_prompt
 			end
