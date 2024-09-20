@@ -32,6 +32,29 @@ enum KnownShell {
     Fish,
 }
 
+/// Modify the prompt to include the session name.
+fn modify_prompt(prompt: &str, session_name: &str) -> String {
+    let line_break = if prompt.contains("\r\n") {
+        "\r\n"
+    } else if prompt.contains("\n") {
+        "\n"
+    } else if prompt.contains("\r") {
+        "\r"
+    } else {
+        ""
+    };
+
+    let parts: Vec<&str> = prompt.splitn(2, line_break).collect();
+    let preprompt = if parts.len() > 1 { parts[0] } else { "" };
+    let posprompt = if parts.len() > 1 { parts[1] } else { parts[0] };
+
+    if line_break.is_empty() {
+        format!("[{}]{}", session_name, posprompt)
+    } else {
+        format!("{} [{}]{}{}", preprompt, session_name, line_break, posprompt)
+    }
+}
+
 /// Inject the given prefix into the given shell subprocess, using
 /// the shell path in `shell` to decide the right way to go about
 /// injecting the prefix.
@@ -58,11 +81,13 @@ pub fn maybe_inject_prefix(
     // now actually inject the prompt
     let prompt_prefix = prompt_prefix.replace("$SHPOOL_SESSION_NAME", session_name);
 
-    let mut script = match (prompt_prefix.as_str(), shell_type) {
+    let modified_prompt = modify_prompt(&prompt_prefix, session_name);
+
+    let mut script = match (modified_prompt.as_str(), shell_type) {
         (_, Ok(KnownShell::Bash)) => format!(
             r#"
             if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
-               PS1="{session_name}$'\\n'${{PS1}}"
+               PS1="{modified_prompt}"
             else
                SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
                SHPOOL__OLD_PS1="${{PS1}}"
@@ -72,11 +97,12 @@ pub fn maybe_inject_prefix(
                   do
                     ${{prompt_hook}}
                   done
-                  PS1="[{session_name}] ${{PS1}}"
+                  PS1="{}"
                }}
                PROMPT_COMMAND=__shpool__prompt_command
             fi
-        "#
+        "#,
+            modified_prompt
         ),
         (_, Ok(KnownShell::Zsh)) => format!(
             r#"
@@ -87,16 +113,18 @@ pub fn maybe_inject_prefix(
             }}
             precmd_functions[1,0]=(__shpool__reset_rprompt)
             function __shpool__prompt_command() {{
-               PROMPT="[{session_name}] ${{PROMPT}}"
+               PROMPT="{}"
             }}
             precmd_functions+=(__shpool__prompt_command)
-        "#
+        "#,
+            modified_prompt
         ),
         (_, Ok(KnownShell::Fish)) => format!(
             r#"
             functions --copy fish_prompt shpool__old_prompt
-            function fish_prompt; echo -n "[{session_name}] "; shpool__old_prompt; end
-        "#
+            function fish_prompt; echo -n "{} "; shpool__old_prompt; end
+        "#,
+            modified_prompt
         ),
         (_, Err(e)) => {
             warn!("could not sniff shell: {}", e);
@@ -111,7 +139,7 @@ pub fn maybe_inject_prefix(
     // this rather than `echo $PROMPT_SENTINEL` because different
     // shells have subtly different echo behavior which makes it
     // hard to make the scanner work right.
-    // TODO(julien): this will probably not work on mac
+    // TODO: this will probably not work on mac
     let sentinel_cmd =
         format!("\n{}=prompt /proc/{}/exe daemon\n", SENTINEL_FLAG_VAR, std::process::id());
     script.push_str(sentinel_cmd.as_str());
