@@ -37,7 +37,7 @@ use shpool_protocol::{
     SessionMessageReply, SessionMessageRequest, SessionMessageRequestPayload, SessionStatus,
     VersionHeader,
 };
-use tracing::{error, info, instrument, span, trace, warn, Level};
+use tracing::{error, info, instrument, span, warn, Level};
 
 use crate::{
     config,
@@ -93,10 +93,7 @@ impl Server {
             }
         });
 
-        let daily_messenger = Arc::new(show_motd::DailyMessenger::new(
-            config.get().motd.clone().unwrap_or_default(),
-            config.get().motd_args.clone(),
-        )?);
+        let daily_messenger = Arc::new(show_motd::DailyMessenger::new(config.clone())?);
         Ok(Arc::new(Server {
             config,
             shells,
@@ -195,8 +192,12 @@ impl Server {
         // want to in the future, so it is not worth breaking the protocol over.
         let warnings = vec![];
 
+        let user_info = user::info().context("resolving user info")?;
+        let shell_env = self.build_shell_env(&user_info, &header).context("building shell env")?;
+
         let (child_exit_notifier, inner_to_stream, pager_ctl_slot, status) = {
             // we unwrap to propagate the poison as an unwind
+            let _s = span!(Level::INFO, "1_lock(shells)").entered();
             let mut shells = self.shells.lock().unwrap();
             info!("locked shells table");
 
@@ -288,6 +289,8 @@ impl Server {
                     conn_id,
                     stream,
                     &header,
+                    &user_info,
+                    &shell_env,
                     matches!(motd, MotdDisplayMode::Dump),
                 )?;
 
@@ -342,6 +345,7 @@ impl Server {
                     client_stream,
                     pager_ctl_slot,
                     header.local_tty_size.clone(),
+                    &shell_env,
                 ) {
                     Ok(Some(new_size)) => {
                         info!("motd pager finished, reporting new tty size: {:?}", new_size);
@@ -381,6 +385,7 @@ impl Server {
                 if let Err(err) = self.hooks.on_shell_disconnect(&header.name) {
                     warn!("shell_disconnect hook: {:?}", err);
                 }
+                let _s = span!(Level::INFO, "2_lock(shells)").entered();
                 let mut shells = self.shells.lock().unwrap();
                 shells.remove(&header.name);
 
@@ -446,11 +451,11 @@ impl Server {
         let mut not_found_sessions = vec![];
         let mut not_attached_sessions = vec![];
         {
-            trace!("about to lock shells table 3");
+            let _s = span!(Level::INFO, "lock(shells)").entered();
             let shells = self.shells.lock().unwrap();
-            trace!("locked shells table 3");
             for session in request.sessions.into_iter() {
                 if let Some(s) = shells.get(&session) {
+                    let _s = span!(Level::INFO, "lock(shell_to_client_ctl)").entered();
                     let shell_to_client_ctl = s.shell_to_client_ctl.lock().unwrap();
                     shell_to_client_ctl
                         .client_connection
@@ -480,6 +485,7 @@ impl Server {
     fn handle_kill(&self, mut stream: UnixStream, request: KillRequest) -> anyhow::Result<()> {
         let mut not_found_sessions = vec![];
         {
+            let _s = span!(Level::INFO, "lock(shells)").entered();
             let mut shells = self.shells.lock().unwrap();
 
             let mut to_remove = Vec::with_capacity(request.sessions.len());
@@ -510,6 +516,7 @@ impl Server {
 
     #[instrument(skip_all)]
     fn handle_list(&self, mut stream: UnixStream) -> anyhow::Result<()> {
+        let _s = span!(Level::INFO, "lock(shells)").entered();
         let shells = self.shells.lock().unwrap();
 
         let sessions: anyhow::Result<Vec<Session>> = shells
@@ -544,11 +551,12 @@ impl Server {
         // create a slot to store our reply so we can do
         // our IO without the lock held.
         let reply = {
+            let _s = span!(Level::INFO, "lock(shells)").entered();
             let shells = self.shells.lock().unwrap();
             if let Some(session) = shells.get(&header.session_name) {
                 match header.payload {
                     SessionMessageRequestPayload::Resize(resize_request) => {
-                        info!("handling resize msg");
+                        let _s = span!(Level::INFO, "lock(pager_ctl)").entered();
                         let pager_ctl = session.pager_ctl.lock().unwrap();
                         if let Some(pager_ctl) = pager_ctl.as_ref() {
                             info!("resizing pager");
@@ -561,7 +569,8 @@ impl Server {
                                 .recv_timeout(SESSION_MSG_TIMEOUT)
                                 .context("recving tty size change ack from pager")?;
                         } else {
-                            info!("resizing shell->client");
+                            let _s =
+                                span!(Level::INFO, "resize_lock(shell_to_client_ctl)").entered();
                             let shell_to_client_ctl = session.shell_to_client_ctl.lock().unwrap();
                             shell_to_client_ctl
                                 .tty_size_change
@@ -576,7 +585,7 @@ impl Server {
                         SessionMessageReply::Resize(ResizeReply::Ok)
                     }
                     SessionMessageRequestPayload::Detach => {
-                        info!("handling detach msg");
+                        let _s = span!(Level::INFO, "detach_lock(shell_to_client_ctl)").entered();
                         let shell_to_client_ctl = session.shell_to_client_ctl.lock().unwrap();
                         shell_to_client_ctl
                             .client_connection
@@ -612,9 +621,10 @@ impl Server {
         conn_id: usize,
         client_stream: UnixStream,
         header: &AttachHeader,
+        user_info: &user::Info,
+        shell_env: &[(String, String)],
         dump_motd_on_new_session: bool,
     ) -> anyhow::Result<shell::Session> {
-        let user_info = user::info()?;
         let shell = if let Some(s) = &self.config.get().shell {
             s.clone()
         } else {
@@ -659,7 +669,8 @@ impl Server {
             // to avoid breakage and vars the user has asked us to inject.
             .env_clear();
 
-        let term = self.inject_env(&mut cmd, &user_info, header).context("setting up shell env")?;
+        let term = shell_env.iter().filter(|(k, _)| k == "TERM").map(|(_, v)| v).next();
+        cmd.envs(shell_env.to_vec());
         let fallback_terminfo = || match termini::TermInfo::from_name("xterm") {
             Ok(db) => Ok(db),
             Err(err) => {
@@ -823,29 +834,35 @@ impl Server {
 
     /// Set up the environment for the shell, returning the right TERM value.
     #[instrument(skip_all)]
-    fn inject_env(
+    fn build_shell_env(
         &self,
-        cmd: &mut process::Command,
         user_info: &user::Info,
         header: &AttachHeader,
-    ) -> anyhow::Result<Option<String>> {
-        cmd.env("HOME", &user_info.home_dir)
-            .env(
-                "PATH",
-                self.config
-                    .get()
+    ) -> anyhow::Result<Vec<(String, String)>> {
+        let s = String::from;
+        let config = self.config.get();
+        let auth_sock = self.ssh_auth_sock_symlink(PathBuf::from(&header.name));
+        let mut env = vec![
+            (s("HOME"), s(&user_info.home_dir)),
+            (
+                s("PATH"),
+                s(config
                     .initial_path
                     .as_ref()
                     .map(|x| x.as_ref())
-                    .unwrap_or(DEFAULT_INITIAL_SHELL_PATH),
-            )
-            .env("SHPOOL_SESSION_NAME", &header.name)
-            .env("SHELL", &user_info.default_shell)
-            .env("USER", &user_info.user)
-            .env("SSH_AUTH_SOCK", self.ssh_auth_sock_symlink(PathBuf::from(&header.name)));
+                    .unwrap_or(DEFAULT_INITIAL_SHELL_PATH)),
+            ),
+            (s("SHPOOL_SESSION_NAME"), s(&header.name)),
+            (s("SHELL"), s(&user_info.default_shell)),
+            (s("USER"), s(&user_info.user)),
+            (
+                s("SSH_AUTH_SOCK"),
+                s(auth_sock.to_str().ok_or(anyhow!("failed to convert auth sock symlink"))?),
+            ),
+        ];
 
         if let Ok(xdg_runtime_dir) = env::var("XDG_RUNTIME_DIR") {
-            cmd.env("XDG_RUNTIME_DIR", xdg_runtime_dir);
+            env.push((s("XDG_RUNTIME_DIR"), xdg_runtime_dir));
         }
 
         // Most of the time, use the TERM that the user sent along in
@@ -857,8 +874,9 @@ impl Server {
         if let Some(t) = header.local_env_get("TERM") {
             term = Some(String::from(t));
         }
-        if let Some(env) = self.config.get().env.as_ref() {
-            term = match env.get("TERM") {
+        let filtered_env_pin;
+        if let Some(extra_env) = config.env.as_ref() {
+            term = match extra_env.get("TERM") {
                 None => term,
                 Some(t) if t.is_empty() => None,
                 Some(t) => Some(String::from(t)),
@@ -870,23 +888,22 @@ impl Server {
             // output which is easier to parse and interact with for
             // another machine. This is particularly useful for testing
             // shpool itself.
-            let filtered_env_pin;
-            let env = if term.is_none() {
-                let mut e = env.clone();
+            let extra_env = if term.is_none() {
+                let mut e = extra_env.clone();
                 e.remove("TERM");
                 filtered_env_pin = Some(e);
                 filtered_env_pin.as_ref().unwrap()
             } else {
-                env
+                extra_env
             };
 
             if !env.is_empty() {
-                cmd.envs(env);
+                env.extend(extra_env.iter().map(|(k, v)| (s(k), s(v))));
             }
         }
         info!("injecting TERM into shell {:?}", term);
         if let Some(t) = &term {
-            cmd.env("TERM", t);
+            env.push((s("TERM"), s(t)));
         }
 
         // inject all other local variables
@@ -894,7 +911,7 @@ impl Server {
             if var == "TERM" || var == "SSH_AUTH_SOCK" {
                 continue;
             }
-            cmd.env(var, val);
+            env.push((s(var), s(val)));
         }
 
         // parse and load /etc/environment unless we've been asked not to
@@ -903,7 +920,7 @@ impl Server {
                 Ok(f) => {
                     let pairs = etc_environment::parse_compat(io::BufReader::new(f))?;
                     for (var, val) in pairs.into_iter() {
-                        cmd.env(var, val);
+                        env.push((var, val));
                     }
                 }
                 Err(e) => {
@@ -912,7 +929,7 @@ impl Server {
             }
         }
 
-        Ok(term)
+        Ok(env)
     }
 
     fn ssh_auth_sock_symlink(&self, session_name: PathBuf) -> PathBuf {

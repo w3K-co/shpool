@@ -127,6 +127,16 @@ You can customize some of `shpool`s behavior by editing your
 `~/.config/shpool/config.toml` file. For an in depth discussion
 of configuration options see [CONFIG.md](./CONFIG.md).
 
+### Keybindings
+
+`shpool` supports keybindings (well really for the moment it
+supports keybinding, but in principle we could add more).
+For the moment, the only binding is `Ctrl-Space Ctrl-q`
+to detach from the current session. If you wish, you can
+[configure](./CONFIG.md#detach-keybinding) this to use
+a different keybinding. The full list of supported binding
+actions is defined by the `Action` enum in [`keybindings.rs`](./libshpool/src/daemon/keybindings.rs).
+
 ### Shell Config
 
 ##### bash
@@ -190,19 +200,19 @@ the same jobs on a particular machine, custom ssh config
 blocks on your client machine are probably the best
 fit.
 
-To do this, you can add a config block named `edit` like so
+To do this, you can define "hosts" for sessions named `main` and `edit`
+in a config block in `~/.ssh/config` on your client machine, like so
 
 ```
-Host = edit
+Host = main edit
     Hostname remote.host.example.com
 
-    RemoteCommand shpool attach -f edit
+    RemoteCommand shpool attach -f %k
     RequestTTY yes
 ```
 
-to `~/.ssh/config` on your client machine. You will need one
-such block per session name. You can then invoke this with
-`ssh edit`.
+You can then attach to these sessions with `ssh main` or `ssh edit`.
+`%k` expands to the "host" named on the command line.
 
 ##### shell function
 
