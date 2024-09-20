@@ -55,6 +55,8 @@ pub fn maybe_inject_prefix(
     let shell_type = sniff_shell(shell_pid);
     debug!("sniffed shell type: {:?}", shell_type);
 
+
+
 	// now actually inject the prompt
 	let prompt_prefix = prompt_prefix.replace("$SHPOOL_SESSION_NAME", session_name);
 
@@ -67,7 +69,7 @@ pub fn maybe_inject_prefix(
 					PS1="{prompt_prefix} [ shpool:${{session_name}} ]\n${{PS1}}"
 				else
 					# Single-line prompt
-					PS1="[ shpool:${{session_name}} ]\n${{PS1}}"
+					PS1="[ shpool:${{session_name}} ] ${prompt_prefix}${{PS1}}"
 				fi
 			else
 				SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
@@ -78,7 +80,7 @@ pub fn maybe_inject_prefix(
 						PS1="${{SHPOOL__OLD_PS1}} [ shpool:${{session_name}} ]"
 					else
 						# Single-line prompt
-						PS1="[ shpool:${{session_name}} ]\n${{SHPOOL__OLD_PS1}}"
+						PS1="[ shpool:${{session_name}} ] ${SHPOOL__OLD_PS1}"
 					fi
 					for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
 					do
@@ -103,7 +105,7 @@ pub fn maybe_inject_prefix(
 					PROMPT="{prompt_prefix} [ shpool:${{session_name}} ]${{PROMPT}}"
 				else
 					# Single-line prompt
-					PROMPT="[ shpool:${{session_name}} ]\n${{SHPOOL__OLD_PROMPT}}"
+					PROMPT="[ shpool:${{session_name}} ] ${SHPOOL__OLD_PROMPT}"
 				fi
 			}}
 			precmd_functions+=(__shpool__prompt_command)
@@ -118,7 +120,7 @@ pub fn maybe_inject_prefix(
 					echo -n "{prompt_prefix} [ shpool:${{session_name}} ]"
 				else
 					# Single-line prompt
-					echo -n "[ shpool:${{session_name}} ]"
+					echo -n "[ shpool:${{session_name}} ] "
 				end
 				shpool__old_prompt
 			end
@@ -131,6 +133,7 @@ pub fn maybe_inject_prefix(
 			String::new()
 		}
 	};
+
 
 
     // With this magic env var set, `shpool daemon` will just
