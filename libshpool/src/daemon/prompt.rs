@@ -72,7 +72,7 @@ pub fn maybe_inject_prefix(
                   do
                     ${{prompt_hook}}
                   done
-                  PS1="{session_name}$'\\n'${{PS1}}"
+                  PS1="[{session_name}] ${{PS1}}"
                }}
                PROMPT_COMMAND=__shpool__prompt_command
             fi
@@ -87,7 +87,7 @@ pub fn maybe_inject_prefix(
             }}
             precmd_functions[1,0]=(__shpool__reset_rprompt)
             function __shpool__prompt_command() {{
-               PROMPT="{session_name}$'\\n'${{PROMPT}}"
+               PROMPT="[{session_name}] ${{PROMPT}}"
             }}
             precmd_functions+=(__shpool__prompt_command)
         "#
@@ -95,7 +95,7 @@ pub fn maybe_inject_prefix(
         (_, Ok(KnownShell::Fish)) => format!(
             r#"
             functions --copy fish_prompt shpool__old_prompt
-            function fish_prompt; echo -n "{session_name}"; shpool__old_prompt; end
+            function fish_prompt; echo -n "[{session_name}] "; shpool__old_prompt; end
         "#
         ),
         (_, Err(e)) => {
