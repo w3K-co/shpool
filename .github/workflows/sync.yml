@@ -1,0 +1,36 @@
+name: Sync Fork with Upstream
+
+on:
+  schedule:
+    - cron:  '0 0 * * *' # Runs every day at midnight UTC (adjust the time as needed)
+  workflow_dispatch: # Allows manual triggering of the workflow
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 1 # Fetch shallow history
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+
+      - name: Unshallow the Git history
+        run: git pull --unshallow
+
+      - name: Add Upstream and Fetch
+        run: |
+          git remote add upstream https://github.com/shell-pool/shpool.git
+          git fetch upstream
+
+      - name: Merge upstream/master into local master
+        run: |
+          git checkout master
+          git merge --no-edit upstream/master
+
+      - name: Push changes to the fork
+        run: git push origin master
