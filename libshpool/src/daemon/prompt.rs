@@ -79,15 +79,13 @@ pub fn maybe_inject_prefix(
     debug!("sniffed shell type: {:?}", shell_type);
 
     // now actually inject the prompt
-    let prompt_prefix = prompt_prefix.replace("$SHPOOL_SESSION_NAME", session_name);
-
     let modified_prompt = modify_prompt(&prompt_prefix, session_name);
 
     let mut script = match (modified_prompt.as_str(), shell_type) {
         (_, Ok(KnownShell::Bash)) => format!(
             r#"
             if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
-               PS1="{modified_prompt}"
+               PS1="{}"
             else
                SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
                SHPOOL__OLD_PS1="${{PS1}}"
@@ -102,7 +100,7 @@ pub fn maybe_inject_prefix(
                PROMPT_COMMAND=__shpool__prompt_command
             fi
         "#,
-            modified_prompt
+            modified_prompt, modified_prompt
         ),
         (_, Ok(KnownShell::Zsh)) => format!(
             r#"
