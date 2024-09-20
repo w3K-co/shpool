@@ -66,10 +66,10 @@ pub fn maybe_inject_prefix(
 			if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
 				if [[ "$PS1" == *$'\n'* ]]; then
 					# Multi-line prompt
-					PS1="{prompt_prefix} [ shpool:${{session_name}} ]\n${{PS1}}"
+					PS1="[ {{session_name}} ]\n${{PS1}}"
 				else
 					# Single-line prompt
-					PS1="[ shpool:${{session_name}} ] {prompt_prefix}${{PS1}}"
+					PS1="[ {{session_name}} ] {prompt_prefix}${{PS1}}"
 				fi
 			else
 				SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
@@ -77,10 +77,10 @@ pub fn maybe_inject_prefix(
 				function __shpool__prompt_command() {{
 					if [[ "$PS1" == *$'\n'* ]]; then
 						# Multi-line prompt
-						PS1="${{SHPOOL__OLD_PS1}} [ shpool:${{session_name}} ]"
+						PS1="${{SHPOOL__OLD_PS1}}"
 					else
 						# Single-line prompt
-						PS1="[ shpool:${{session_name}} ] ${SHPOOL__OLD_PS1}"
+						PS1="[ {{session_name}} ] ${SHPOOL__OLD_PS1}"
 					fi
 					for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
 					do
@@ -100,12 +100,13 @@ pub fn maybe_inject_prefix(
 			}}
 			precmd_functions[1,0]=(__shpool__reset_rprompt)
 			function __shpool__prompt_command() {{
+				SHPOOL__OLD_PROMPT="${{PROMPT}}"
 				if [[ "$PROMPT" == *$'\n'* ]]; then
 					# Multi-line prompt
-					PROMPT="{prompt_prefix} [ shpool:${{session_name}} ]${{PROMPT}}"
+					PROMPT="[ {{session_name}} ]${{PROMPT}}"
 				else
 					# Single-line prompt
-					PROMPT="[ shpool:${{session_name}} ] ${SHPOOL__OLD_PROMPT}"
+					PROMPT="[ {{session_name}} ] ${SHPOOL__OLD_PROMPT}"
 				fi
 			}}
 			precmd_functions+=(__shpool__prompt_command)
@@ -117,10 +118,10 @@ pub fn maybe_inject_prefix(
 			function fish_prompt
 				if test (count $PROMPT) -gt 1
 					# Multi-line prompt
-					echo -n "{prompt_prefix} [ shpool:${{session_name}} ]"
+					echo -n "[ {{session_name}} ]"
 				else
 					# Single-line prompt
-					echo -n "[ shpool:${{session_name}} ] "
+					echo -n "[ {{session_name}} ] "
 				end
 				shpool__old_prompt
 			end
@@ -128,8 +129,6 @@ pub fn maybe_inject_prefix(
 		),
 		(_, Err(e)) => {
 			warn!("could not sniff shell: {}", e);
-
-			// not the end of the world, we will just not inject a prompt prefix
 			String::new()
 		}
 	};
