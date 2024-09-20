@@ -64,24 +64,43 @@ pub fn maybe_inject_prefix(
 		(_, Ok(KnownShell::Bash)) => format!(
 			r#"
 			if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
-				if [[ "$PS1" == *$'\n'* ]]; then
-					# Multi-line prompt
-					PS1="${{PS1%%$'\\n'*}} [{session_name}]$'\n'${{PS1##*$'\\n'}}"
+				# Capture the existing prompt
+				existing_prompt="${{PS1}}"
+				# Determine line break type
+				if [[ "$existing_prompt" == *$'\n'* ]]; then
+					PREPROMPT="${{existing_prompt%%$'\\n'*}}"
+					POSPROMPT="${{existing_prompt##*$'\\n'}}"
+					line_break=$'\n'
+				elif [[ "$existing_prompt" == *$'\r'* ]]; then
+					PREPROMPT="${{existing_prompt%%$'\\r'*}}"
+					POSPROMPT="${{existing_prompt##*$'\\r'}}"
+					line_break=$'\r'
 				else
-					# Single-line prompt
-					PS1="[{session_name}]\n${{PS1}}"
+					PREPROMPT=""
+					POSPROMPT="${{existing_prompt}}"
+					line_break=""
 				fi
+				# Set the new prompt
+				PS1="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
 			else
 				SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
 				SHPOOL__OLD_PS1="${{PS1}}"
 				function __shpool__prompt_command() {{
-					if [[ "$PS1" == *$'\n'* ]]; then
-						# Multi-line prompt
-						PS1="${{PS1%%$'\\n'*}} [{session_name}]$'\n'${{SHPOOL__OLD_PS1##*$'\\n'}}"
+					existing_prompt="${{SHPOOL__OLD_PS1}}"
+					if [[ "$existing_prompt" == *$'\n'* ]]; then
+						PREPROMPT="${{existing_prompt%%$'\\n'*}}"
+						POSPROMPT="${{existing_prompt##*$'\\n'}}"
+						line_break=$'\n'
+					elif [[ "$existing_prompt" == *$'\r'* ]]; then
+						PREPROMPT="${{existing_prompt%%$'\\r'*}}"
+						POSPROMPT="${{existing_prompt##*$'\\r'}}"
+						line_break=$'\r'
 					else
-						# Single-line prompt
-						PS1="[{session_name}]\n${{SHPOOL__OLD_PS1}}"
+						PREPROMPT=""
+						POSPROMPT="${{existing_prompt}}"
+						line_break=""
 					fi
+					PS1="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
 					for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
 					do
 						${{prompt_hook}}
@@ -94,19 +113,38 @@ pub fn maybe_inject_prefix(
 		(_, Ok(KnownShell::Zsh)) => format!(
 			r#"
 			typeset -a precmd_functions
-			SHPOOL__OLD_PROMPT="${{PROMPT}}"
-			function __shpool__reset_rprompt() {{
-				PROMPT="${{SHPOOL__OLD_PROMPT}}"
-			}}
-			precmd_functions[1,0]=(__shpool__reset_rprompt)
+			existing_prompt="${{PROMPT}}"
+			if [[ "$existing_prompt" == *$'\n'* ]]; then
+				PREPROMPT="${{existing_prompt%%$'\\n'*}}"
+				POSPROMPT="${{existing_prompt##*$'\\n'}}"
+				line_break=$'\n'
+			elif [[ "$existing_prompt" == *$'\r'* ]]; then
+				PREPROMPT="${{existing_prompt%%$'\\r'*}}"
+				POSPROMPT="${{existing_prompt##*$'\\r'}}"
+				line_break=$'\r'
+			else
+				PREPROMPT=""
+				POSPROMPT="${{existing_prompt}}"
+				line_break=""
+			fi
+			PROMPT="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
+
 			function __shpool__prompt_command() {{
-				if [[ "$PROMPT" == *$'\n'* ]]; then
-					# Multi-line prompt
-					PROMPT="${{PROMPT%%$'\\n'*}} [{session_name}]$'\n'${{SHPOOL__OLD_PROMPT##*$'\\n'}}"
+				existing_prompt="${{PROMPT}}"
+				if [[ "$existing_prompt" == *$'\n'* ]]; then
+					PREPROMPT="${{existing_prompt%%$'\\n'*}}"
+					POSPROMPT="${{existing_prompt##*$'\\n'}}"
+					line_break=$'\n'
+				elif [[ "$existing_prompt" == *$'\r'* ]]; then
+					PREPROMPT="${{existing_prompt%%$'\\r'*}}"
+					POSPROMPT="${{existing_prompt##*$'\\r'}}"
+					line_break=$'\r'
 				else
-					# Single-line prompt
-					PROMPT="[{session_name}]\n${{SHPOOL__OLD_PROMPT}}"
+					PREPROMPT=""
+					POSPROMPT="${{existing_prompt}}"
+					line_break=""
 				fi
+				PROMPT="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
 			}}
 			precmd_functions+=(__shpool__prompt_command)
 			"#
@@ -115,12 +153,25 @@ pub fn maybe_inject_prefix(
 			r#"
 			functions --copy fish_prompt shpool__old_prompt
 			function fish_prompt
-				if test (count $PROMPT) -gt 1
-					# Multi-line prompt
-					echo -n "$SHPOOL__OLD_PROMPT [{session_name}]"
+				set existing_prompt (prompt_pwd)
+				if test (count $existing_prompt) -gt 1
+					# Determine line break type
+					if echo "$existing_prompt" | grep -q $'\n'
+						set PREPROMPT (string split -m 1 '\n' "$existing_prompt")[1]
+						set POSPROMPT (string split -m 1 '\n' "$existing_prompt")[2]
+						set line_break $'\n'
+					else if echo "$existing_prompt" | grep -q $'\r'
+						set PREPROMPT (string split -m 1 '\r' "$existing_prompt")[1]
+						set POSPROMPT (string split -m 1 '\r' "$existing_prompt")[2]
+						set line_break $'\r'
+					else
+						set PREPROMPT ""
+						set POSPROMPT "$existing_prompt"
+						set line_break ""
+					end
+					echo -n "${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
 				else
-					# Single-line prompt
-					echo -n "[{session_name}]\n$SHPOOL__OLD_PROMPT"
+					echo -n "[ {session_name} ]\n$SHPOOL__OLD_PROMPT"
 				end
 				shpool__old_prompt
 			end
