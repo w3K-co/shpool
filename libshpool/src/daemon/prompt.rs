@@ -55,135 +55,56 @@ pub fn maybe_inject_prefix(
     let shell_type = sniff_shell(shell_pid);
     debug!("sniffed shell type: {:?}", shell_type);
 
+    // now actually inject the prompt
+    let prompt_prefix = prompt_prefix.replace("$SHPOOL_SESSION_NAME", session_name);
 
+    let mut script = match (prompt_prefix.as_str(), shell_type) {
+        (_, Ok(KnownShell::Bash)) => format!(
+            r#"
+            if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
+               PS1="{session_name}$'\\n'${{PS1}}"
+            else
+               SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
+               SHPOOL__OLD_PS1="${{PS1}}"
+               function __shpool__prompt_command() {{
+                  PS1="${{SHPOOL__OLD_PS1}}"
+                  for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
+                  do
+                    ${{prompt_hook}}
+                  done
+                  PS1="{session_name}$'\\n'${{PS1}}"
+               }}
+               PROMPT_COMMAND=__shpool__prompt_command
+            fi
+        "#
+        ),
+        (_, Ok(KnownShell::Zsh)) => format!(
+            r#"
+            typeset -a precmd_functions
+            SHPOOL__OLD_PROMPT="${{PROMPT}}"
+            function __shpool__reset_rprompt() {{
+                PROMPT="${{SHPOOL__OLD_PROMPT}}"
+            }}
+            precmd_functions[1,0]=(__shpool__reset_rprompt)
+            function __shpool__prompt_command() {{
+               PROMPT="{session_name}$'\\n'${{PROMPT}}"
+            }}
+            precmd_functions+=(__shpool__prompt_command)
+        "#
+        ),
+        (_, Ok(KnownShell::Fish)) => format!(
+            r#"
+            functions --copy fish_prompt shpool__old_prompt
+            function fish_prompt; echo -n "{session_name}"; shpool__old_prompt; end
+        "#
+        ),
+        (_, Err(e)) => {
+            warn!("could not sniff shell: {}", e);
 
-	// now actually inject the prompt
-	let prompt_prefix = prompt_prefix.replace("$SHPOOL_SESSION_NAME", session_name);
-
-	let mut script = match (prompt_prefix.as_str(), shell_type) {
-		(_, Ok(KnownShell::Bash)) => format!(
-			r#"
-			if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
-				# Capture the existing prompt
-				existing_prompt="${{PS1}}"
-				# Determine line break type
-				if [[ "$existing_prompt" == *$'\n'* ]]; then
-					PREPROMPT="${{existing_prompt%%$'\\n'*}}"
-					POSPROMPT="${{existing_prompt##*$'\\n'}}"
-					line_break=$'\n'
-				elif [[ "$existing_prompt" == *$'\r'* ]]; then
-					PREPROMPT="${{existing_prompt%%$'\\r'*}}"
-					POSPROMPT="${{existing_prompt##*$'\\r'}}"
-					line_break=$'\r'
-				else
-					PREPROMPT=""
-					POSPROMPT="${{existing_prompt}}"
-					line_break=""
-				fi
-				# Set the new prompt
-				PS1="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
-			else
-				SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
-				SHPOOL__OLD_PS1="${{PS1}}"
-				function __shpool__prompt_command() {{
-					existing_prompt="${{SHPOOL__OLD_PS1}}"
-					if [[ "$existing_prompt" == *$'\n'* ]]; then
-						PREPROMPT="${{existing_prompt%%$'\\n'*}}"
-						POSPROMPT="${{existing_prompt##*$'\\n'}}"
-						line_break=$'\n'
-					elif [[ "$existing_prompt" == *$'\r'* ]]; then
-						PREPROMPT="${{existing_prompt%%$'\\r'*}}"
-						POSPROMPT="${{existing_prompt##*$'\\r'}}"
-						line_break=$'\r'
-					else
-						PREPROMPT=""
-						POSPROMPT="${{existing_prompt}}"
-						line_break=""
-					fi
-					PS1="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
-					for prompt_hook in ${{SHPOOL__OLD_PROMPT_COMMAND}}
-					do
-						${{prompt_hook}}
-					done
-				}}
-				PROMPT_COMMAND=__shpool__prompt_command
-			fi
-			"#
-		),
-		(_, Ok(KnownShell::Zsh)) => format!(
-			r#"
-			typeset -a precmd_functions
-			existing_prompt="${{PROMPT}}"
-			if [[ "$existing_prompt" == *$'\n'* ]]; then
-				PREPROMPT="${{existing_prompt%%$'\\n'*}}"
-				POSPROMPT="${{existing_prompt##*$'\\n'}}"
-				line_break=$'\n'
-			elif [[ "$existing_prompt" == *$'\r'* ]]; then
-				PREPROMPT="${{existing_prompt%%$'\\r'*}}"
-				POSPROMPT="${{existing_prompt##*$'\\r'}}"
-				line_break=$'\r'
-			else
-				PREPROMPT=""
-				POSPROMPT="${{existing_prompt}}"
-				line_break=""
-			fi
-			PROMPT="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
-
-			function __shpool__prompt_command() {{
-				existing_prompt="${{PROMPT}}"
-				if [[ "$existing_prompt" == *$'\n'* ]]; then
-					PREPROMPT="${{existing_prompt%%$'\\n'*}}"
-					POSPROMPT="${{existing_prompt##*$'\\n'}}"
-					line_break=$'\n'
-				elif [[ "$existing_prompt" == *$'\r'* ]]; then
-					PREPROMPT="${{existing_prompt%%$'\\r'*}}"
-					POSPROMPT="${{existing_prompt##*$'\\r'}}"
-					line_break=$'\r'
-				else
-					PREPROMPT=""
-					POSPROMPT="${{existing_prompt}}"
-					line_break=""
-				fi
-				PROMPT="${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
-			}}
-			precmd_functions+=(__shpool__prompt_command)
-			"#
-		),
-		(_, Ok(KnownShell::Fish)) => format!(
-			r#"
-			functions --copy fish_prompt shpool__old_prompt
-			function fish_prompt
-				set existing_prompt (prompt_pwd)
-				if test (count $existing_prompt) -gt 1
-					# Determine line break type
-					if echo "$existing_prompt" | grep -q $'\n'
-						set PREPROMPT (string split -m 1 '\n' "$existing_prompt")[1]
-						set POSPROMPT (string split -m 1 '\n' "$existing_prompt")[2]
-						set line_break $'\n'
-					else if echo "$existing_prompt" | grep -q $'\r'
-						set PREPROMPT (string split -m 1 '\r' "$existing_prompt")[1]
-						set POSPROMPT (string split -m 1 '\r' "$existing_prompt")[2]
-						set line_break $'\r'
-					else
-						set PREPROMPT ""
-						set POSPROMPT "$existing_prompt"
-						set line_break ""
-					end
-					echo -n "${{PREPROMPT}} [ {session_name} ]${{line_break}}${{POSPROMPT}}"
-				else
-					echo -n "[ {session_name} ]\n$SHPOOL__OLD_PROMPT"
-				end
-				shpool__old_prompt
-			end
-			"#
-		),
-		(_, Err(e)) => {
-			warn!("could not sniff shell: {}", e);
-			String::new()
-		}
-	};
-
-
+            // not the end of the world, we will just not inject a prompt prefix
+            String::new()
+        }
+    };
 
     // With this magic env var set, `shpool daemon` will just
     // print the prompt sentinel and immediately exit. We do
@@ -192,7 +113,7 @@ pub fn maybe_inject_prefix(
     // hard to make the scanner work right.
     // TODO(julien): this will probably not work on mac
     let sentinel_cmd =
-        format!("\n {}=prompt /proc/{}/exe daemon\n", SENTINEL_FLAG_VAR, std::process::id());
+        format!("\n{}=prompt /proc/{}/exe daemon\n", SENTINEL_FLAG_VAR, std::process::id());
     script.push_str(sentinel_cmd.as_str());
 
     debug!("injecting prefix script '{}'", script);
@@ -205,7 +126,7 @@ pub fn maybe_inject_prefix(
 fn wait_for_startup(pty_master: &mut shpool_pty::fork::Master) -> anyhow::Result<()> {
     let mut startup_sentinel_scanner = SentinelScanner::new(STARTUP_SENTINEL);
     let startup_sentinel_cmd =
-        format!("\n {}=startup /proc/{}/exe daemon\n", SENTINEL_FLAG_VAR, std::process::id());
+        format!("\n{}=startup /proc/{}/exe daemon\n", SENTINEL_FLAG_VAR, std::process::id());
 
     pty_master
         .write_all(startup_sentinel_cmd.as_bytes())
