@@ -64,18 +64,18 @@ pub fn maybe_inject_prefix(
 		(_, Ok(KnownShell::Bash)) => format!(
 			r#"
 			if [[ -z "${{PROMPT_COMMAND+x}}" ]]; then
-				if [[ "$PROMPT" == *$'\n'* ]]; then
+				if [[ "$PS1" == *$'\n'* ]]; then
 					# Multi-line prompt
 					PS1="{prompt_prefix} [ shpool:${{session_name}} ]\n${{PS1}}"
 				else
 					# Single-line prompt
-					PS1="[ shpool:${{session_name}} ] ${prompt_prefix}${{PS1}}"
+					PS1="[ shpool:${{session_name}} ] {prompt_prefix}${{PS1}}"
 				fi
 			else
 				SHPOOL__OLD_PROMPT_COMMAND="${{PROMPT_COMMAND}}"
 				SHPOOL__OLD_PS1="${{PS1}}"
 				function __shpool__prompt_command() {{
-					if [[ "$PROMPT" == *$'\n'* ]]; then
+					if [[ "$PS1" == *$'\n'* ]]; then
 						# Multi-line prompt
 						PS1="${{SHPOOL__OLD_PS1}} [ shpool:${{session_name}} ]"
 					else
