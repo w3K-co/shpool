@@ -76,11 +76,13 @@ jobs:
           targets: ${{ matrix.target }}
 
       # This is the corrected fix for the macOS build.
-      # Instead of patching files, we explicitly tell the Rust compiler
-      # that the target OS is 'macos'. This forces it to select the
-      # correct platform-specific code within dependencies.
+      # We use the 'env' block to set RUSTFLAGS, which is the standard
+      # way to pass flags to the Rust compiler. This forces it to select
+      # the correct platform-specific code within dependencies.
       - name: Build binary
-        run: RUSTFLAGS='--cfg=target_os="macos"' cargo build --release --target ${{ matrix.target }}
+        env:
+          RUSTFLAGS: --cfg=target_os="macos"
+        run: cargo build --release --target ${{ matrix.target }}
       
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
