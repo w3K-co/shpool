@@ -1,0 +1,105 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers the workflow when a new version tag is pushed
+  workflow_dispatch:  # Allows manual execution of the workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v3
+
+      - name: Install musl-tools
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install cross for cross-compilation
+        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: cargo install cross
+
+      - name: Set up Rust for x86_64
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Add musl target for x86_64
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: rustup target add x86_64-unknown-linux-musl
+
+      - name: Build x86_64 binaries
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-unknown-linux-musl'
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Build aarch64 binaries using cross
+        if: matrix.target == 'aarch64-unknown-linux-gnu' || matrix.target == 'aarch64-unknown-linux-musl'
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Rename the binary
+        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v3
+        with:
+          name: shpool-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v3
+
+      - name: Download x86_64 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-x86_64-unknown-linux-gnu
+          path: download/x86_64-unknown-linux-gnu
+
+      - name: Download x86_64 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-x86_64-unknown-linux-musl
+          path: download/x86_64-unknown-linux-musl
+
+      - name: Download aarch64 GNU binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-gnu
+          path: download/aarch64-unknown-linux-gnu
+
+      - name: Download aarch64 musl binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: shpool-aarch64-unknown-linux-musl
+          path: download/aarch64-unknown-linux-musl
+
+      - name: List downloaded files
+        run: ls -R download
+
+      - name: Extract tag name
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Create a release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          files: |
+            download/x86_64-unknown-linux-gnu/shpool-x86_64-unknown-linux-gnu
+            download/x86_64-unknown-linux-musl/shpool-x86_64-unknown-linux-musl
+            download/aarch64-unknown-linux-gnu/shpool-aarch64-unknown-linux-gnu
+            download/aarch64-unknown-linux-musl/shpool-aarch64-unknown-linux-musl
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
