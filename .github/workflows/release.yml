@@ -22,27 +22,30 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Rust toolchain (Updated to a modern action to fix 'cross' install)
+      # Step 2: Remove the local toolchain file to use the one from the action.
+      # This is the key fix. It forces the build to use the modern Rust
+      # version installed in the next step, instead of the old version
+      # specified in the repository's rust-toolchain.toml file.
+      - name: Remove local rust-toolchain.toml
+        run: rm -f rust-toolchain.toml
+
+      # Step 3: Set up Rust toolchain (Updated to a modern action to fix 'cross' install)
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-          # This override is the key fix. It tells the action to ignore any
-          # rust-toolchain.toml file in the repository, which was pinning
-          # the build to an old, incompatible Rust version.
-          override: true
 
-      # Step 3: Install musl-tools if building for a musl target (Original logic)
+      # Step 4: Install musl-tools if building for a musl target (Original logic)
       - name: Install musl-tools for static linking
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      # Step 4: Install 'cross' for cross-compilation (Original logic)
+      # Step 5: Install 'cross' for cross-compilation (Original logic)
       - name: Install cross for cross-compilation
         if: contains(matrix.target, 'aarch64')
         run: cargo install cross
 
-      # Step 5: Build the binary (Original logic)
+      # Step 6: Build the binary (Original logic)
       - name: Build binary
         run: |
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" || "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
@@ -51,11 +54,11 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
       
-      # Step 6: Rename the binary (Original logic)
+      # Step 7: Rename the binary (Original logic)
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
 
-      # Step 7: Upload release asset (Updated to v4 to fix deprecation error)
+      # Step 8: Upload release asset (Updated to v4 to fix deprecation error)
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
