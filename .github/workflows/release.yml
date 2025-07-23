@@ -112,12 +112,19 @@ jobs:
             # For pushes, use the tag that triggered the workflow
             BASE_TAG=${{ github.ref_name }}
           else
-            # For manual dispatches, get the latest tag from the repo
-            LATEST_TAG=$(git describe --tags --abbrev=0)
-            # This is the corrected logic: it removes everything up to and
-            # including the last hyphen, isolating the base version tag (e.g., 'v1.2.3').
-            # If no hyphen exists, it correctly returns the original tag.
-            BASE_TAG=${LATEST_TAG##*-}
+            # For manual dispatches, try to get the latest tag.
+            # The '|| true' part prevents the script from exiting if git describe fails.
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+            
+            if [[ -z "$LATEST_TAG" ]]; then
+              # If no tags were found, set the base tag to v0.0.1
+              echo "No previous tags found. Using v0.0.1 as base."
+              BASE_TAG="v0.0.1"
+            else
+              # If a tag was found, strip any potential timestamp prefix
+              echo "Found latest tag: $LATEST_TAG"
+              BASE_TAG=${LATEST_TAG##*-}
+            fi
           fi
           
           # Generate the timestamp in UTC for consistency
@@ -145,3 +152,4 @@ jobs:
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
