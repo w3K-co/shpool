@@ -27,6 +27,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+          # This override is the key fix. It tells the action to ignore any
+          # rust-toolchain.toml file in the repository, which was pinning
+          # the build to an old, incompatible Rust version.
+          override: true
 
       # Step 3: Install musl-tools if building for a musl target (Original logic)
       - name: Install musl-tools for static linking
