@@ -1,48 +1,44 @@
 # Updated GitHub Actions Workflow: Build and Release
-# This workflow builds binaries for multiple Rust targets and creates a GitHub Release.
-# It has been updated to use the latest versions of actions (as of mid-2024).
+# This workflow is based on the original user-provided file, with minimal
+# updates to fix deprecated actions and resolve compilation errors.
 
 name: Build and Release
 
 on:
   push:
     tags:
-      - 'v*'  # Triggers the workflow when a new version tag is pushed (e.g., v1.0, v2.3.4)
-  workflow_dispatch:  # Allows manual execution of the workflow from the Actions tab
+      - 'v*'  # Triggers the workflow when a new version tag is pushed
+  workflow_dispatch:  # Allows manual execution of the workflow
 
 jobs:
-  # This job builds the binaries for all specified targets in parallel.
   build:
     runs-on: ubuntu-latest
     strategy:
-      # The matrix allows us to run the same steps for different configurations.
       matrix:
         target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
-      # Step 1: Check out the repository's code
+      # Step 1: Checkout the code (Updated to v4)
       - name: Checkout the code
         uses: actions/checkout@v4
 
-      # Step 2: Set up the Rust toolchain with the required target
+      # Step 2: Set up Rust toolchain (Updated to a modern action to fix 'cross' install)
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # Step 3: Install the 'cross' utility for cross-compilation
-      - name: Install cross
-        uses: cross-rs/cargo-install-action@main
-        with:
-          crate: cross
-          version: latest
-
-      # Step 4: Install musl-tools if building for a musl target
+      # Step 3: Install musl-tools if building for a musl target (Original logic)
       - name: Install musl-tools for static linking
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      # Step 5: Build the binary. Use 'cross' for aarch64, otherwise use 'cargo'.
+      # Step 4: Install 'cross' for cross-compilation (Original logic)
+      - name: Install cross for cross-compilation
+        if: contains(matrix.target, 'aarch64')
+        run: cargo install cross
+
+      # Step 5: Build the binary (Original logic)
       - name: Build binary
         run: |
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" || "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
@@ -50,49 +46,41 @@ jobs:
           else
             cargo build --release --target ${{ matrix.target }}
           fi
+      
+      # Step 6: Rename the binary (Original logic)
+      - name: Rename the binary
+        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
 
-      # Step 6: Prepare artifact for upload by renaming it
-      - name: Prepare artifact
-        run: |
-          ARTIFACT_NAME="shpool-${{ matrix.target }}"
-          mv target/${{ matrix.target }}/release/shpool "target/${{ matrix.target }}/release/${ARTIFACT_NAME}"
-          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
-
-      # Step 7: Upload the built binary as a workflow artifact
-      # Using actions/upload-artifact@v4
+      # Step 7: Upload release asset (Updated to v4 to fix deprecation error)
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: target/${{ matrix.target }}/release/${{ env.ARTIFACT_NAME }}
-          retention-days: 1 # Keep artifacts for 1 day
+          name: shpool-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+          retention-days: 1
 
-  # This job runs after all build jobs are complete. It creates the GitHub Release.
   release:
-    needs: build # This job depends on the 'build' job finishing successfully
+    needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to create a release
+      contents: write # Required by softprops/action-gh-release
 
     steps:
-      # Step 1: Download all artifacts built in the previous job
-      # actions/download-artifact@v4 can download all artifacts at once
+      # Step 1: Download all artifacts (Updated to v4 and consolidated)
       - name: Download all binaries
         uses: actions/download-artifact@v4
         with:
-          path: artifacts # Download all artifacts into a directory named 'artifacts'
+          path: artifacts
 
-      # Step 2: List downloaded files to verify (optional)
+      # Step 2: List downloaded files (Original logic, path updated)
       - name: List downloaded files
         run: ls -R artifacts
 
-      # Step 3: Create the GitHub Release and upload the binaries
-      # Using softprops/action-gh-release@v2
-      - name: Create a release and upload assets
+      # Step 3: Create a release (Updated to v2)
+      - name: Create a release
         uses: softprops/action-gh-release@v2
         with:
-          # The 'files' glob pattern finds all the downloaded binaries to attach to the release.
+          # files path updated to work with the consolidated download
           files: artifacts/**/*
         env:
-          # The GITHUB_TOKEN is automatically provided by GitHub Actions
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
