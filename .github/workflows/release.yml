@@ -75,30 +75,12 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # This is the key fix for the macOS build failure.
-      # The shpool_pty dependency uses a Linux-specific function (ptsname_r)
-      # that doesn't exist on macOS. This step patches the dependency's
-      # source code after it's downloaded by Cargo to use the correct
-      # function for macOS before the build starts.
-      - name: Patch shpool_pty for macOS compatibility
-        run: |
-          # First, download the dependencies without building them
-          cargo fetch
-          # Find the problematic source file in the cargo registry
-          SHPOOL_PTY_SRC=$(find ~/.cargo/registry/src -name "shpool_pty-0.3.1" -type d)
-          PTY_MASTER_MOD_RS="$SHPOOL_PTY_SRC/src/fork/pty/master/mod.rs"
-          # Check if the file exists before trying to patch it
-          if [ -f "$PTY_MASTER_MOD_RS" ]; then
-            echo "Patching $PTY_MASTER_MOD_RS..."
-            # Replace the Linux function with a block that works on macOS
-            sed -i.bak 's/match libc::ptsname_r(fd, data as \*mut libc::c_char, buf.len()) {/let ptsname_ptr = libc::ptsname(fd); if ptsname_ptr.is_null() { Err(io::Error::last_os_error()) } else { let len = str_len(ptsname_ptr) + 1; data[..len].copy_from_slice(slice::from_raw_parts(ptsname_ptr as *const u8, len)); Ok(0) }; match 0 {/' "$PTY_MASTER_MOD_RS"
-            echo "Patch applied successfully."
-          else
-            echo "::warning::Could not find shpool_pty source file to patch. The build may fail if the dependency is used."
-          fi
-
+      # This is the corrected fix for the macOS build.
+      # Instead of patching files, we explicitly tell the Rust compiler
+      # that the target OS is 'macos'. This forces it to select the
+      # correct platform-specific code within dependencies.
       - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }}
+        run: RUSTFLAGS='--cfg=target_os="macos"' cargo build --release --target ${{ matrix.target }}
       
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
