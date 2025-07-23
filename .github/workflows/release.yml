@@ -75,13 +75,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # This is the corrected fix for the macOS build.
-      # We use the 'env' block to set RUSTFLAGS, which is the standard
-      # way to pass flags to the Rust compiler. This forces it to select
-      # the correct platform-specific code within dependencies.
+      # With the dependency updated in Cargo.toml, no special flags are needed.
       - name: Build binary
-        env:
-          RUSTFLAGS: --cfg=target_os="macos"
         run: cargo build --release --target ${{ matrix.target }}
       
       - name: Rename the binary
