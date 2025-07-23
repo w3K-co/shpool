@@ -24,19 +24,25 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Rust and install 'cross' using the official cross-rs action.
-      # This replaces the separate toolchain and install steps for better compatibility.
-      - name: Set up Rust and Cross
-        uses: cross-rs/cross-toolchain@main
+      # Step 2: Set up the Rust toolchain with the required target
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          target: ${{ matrix.target }}
+          targets: ${{ matrix.target }}
 
-      # Step 3: Install musl-tools if building for a musl target
+      # Step 3: Install the 'cross' utility for cross-compilation
+      - name: Install cross
+        uses: cross-rs/cargo-install-action@main
+        with:
+          crate: cross
+          version: latest
+
+      # Step 4: Install musl-tools if building for a musl target
       - name: Install musl-tools for static linking
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      # Step 4: Build the binary. Use 'cross' for aarch64, otherwise use 'cargo'.
+      # Step 5: Build the binary. Use 'cross' for aarch64, otherwise use 'cargo'.
       - name: Build binary
         run: |
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" || "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
@@ -45,14 +51,14 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
 
-      # Step 5: Prepare artifact for upload by renaming it
+      # Step 6: Prepare artifact for upload by renaming it
       - name: Prepare artifact
         run: |
           ARTIFACT_NAME="shpool-${{ matrix.target }}"
           mv target/${{ matrix.target }}/release/shpool "target/${{ matrix.target }}/release/${ARTIFACT_NAME}"
           echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
 
-      # Step 6: Upload the built binary as a workflow artifact
+      # Step 7: Upload the built binary as a workflow artifact
       # Using actions/upload-artifact@v4
       - name: Upload release asset
         uses: actions/upload-artifact@v4
