@@ -1,0 +1,66 @@
+# macOS Build Workflow
+# This workflow is dedicated to building binaries for macOS.
+# It resolves the shpool_pty dependency issue by fetching the patched
+# version from the original repository and using a Cargo [patch] directive.
+
+name: Build and Release for macOS
+
+on:
+  workflow_dispatch:  # Allows manual execution of the workflow
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+
+    steps:
+      # Step 1: Checkout your forked repository
+      - name: Checkout your repository
+        uses: actions/checkout@v4
+        with:
+          repository: w3K-co/shpool
+
+      # Step 2: Checkout the patched 'shpool_pty' from the original repo
+      # This directory is missing from the fork but required for the build.
+      - name: Checkout patched pty dependency
+        uses: actions/checkout@v4
+        with:
+          repository: shell-pool/shpool
+          path: shpool_pty # Check it out into a directory named 'shpool_pty'
+          sparse-checkout: shpool_pty # Only download the contents of that directory
+
+      # Step 3: Create Cargo config to patch the dependency
+      # This tells Cargo to use the local version of shpool_pty we just checked out
+      # instead of trying to download it from crates.io. This is the official
+      # way the original repository solves this problem.
+      - name: Create .cargo/config.toml for patch
+        run: |
+          mkdir -p .cargo
+          echo '[patch.crates-io]' > .cargo/config.toml
+          echo 'shpool_pty = { path = "shpool_pty" }' >> .cargo/config.toml
+          echo "Created .cargo/config.toml:"
+          cat .cargo/config.toml
+
+      # Step 4: Set up the Rust toolchain
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Step 5: Build the binary. No special flags are needed now.
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      # Step 6: Rename the binary for upload
+      - name: Rename the binary
+        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+
+      # Step 7: Upload the artifact
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: shpool-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+          retention-days: 1
