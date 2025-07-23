@@ -1,8 +1,8 @@
 # Updated GitHub Actions Workflow: Build and Release
-# This workflow builds binaries for Linux and macOS, then creates a
-# GitHub Release only when a new version tag is pushed.
+# This workflow builds binaries for Linux ONLY and creates a GitHub Release.
+# This version is a reset to a known-good state for Linux builds.
 
-name: Build and Release
+name: Build and Release for Linux
 
 on:
   push:
@@ -19,25 +19,8 @@ jobs:
         target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
-      - name: Checkout your repository
+      - name: Checkout the code
         uses: actions/checkout@v4
-        with:
-          repository: w3K-co/shpool # Checkout your forked repository
-
-      # This is the corrected fix. We check out the original repo to a temporary
-      # directory, then move the required dependency folder into the workspace.
-      # This avoids creating nested git repositories, which causes the
-      # "multiple workspace roots" error.
-      - name: Checkout patched pty dependency
-        uses: actions/checkout@v4
-        with:
-          repository: shell-pool/shpool
-          path: ./.tmp-dep-checkout
-
-      - name: Move patched dependency into workspace
-        run: |
-          mv ./.tmp-dep-checkout/shpool_pty ./shpool_pty
-          rm -rf ./.tmp-dep-checkout
 
       - name: Remove local rust-toolchain.toml
         run: rm -f rust-toolchain.toml
@@ -73,59 +56,9 @@ jobs:
           path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
           retention-days: 1
 
-  # Job to build for all macOS targets
-  build-macos:
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
-
-    steps:
-      - name: Checkout your repository
-        uses: actions/checkout@v4
-        with:
-          repository: w3K-co/shpool # Checkout your forked repository
-
-      # This is the corrected fix. We check out the original repo to a temporary
-      # directory, then move the required dependency folder into the workspace.
-      # This avoids creating nested git repositories, which causes the
-      # "multiple workspace roots" error.
-      - name: Checkout patched pty dependency
-        uses: actions/checkout@v4
-        with:
-          repository: shell-pool/shpool
-          path: ./.tmp-dep-checkout
-
-      - name: Move patched dependency into workspace
-        run: |
-          mv ./.tmp-dep-checkout/shpool_pty ./shpool_pty
-          rm -rf ./.tmp-dep-checkout
-
-      - name: Remove local rust-toolchain.toml
-        run: rm -f rust-toolchain.toml
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      # With the dependency fixed in Cargo.toml, no special flags are needed.
-      - name: Build binary
-        run: cargo build --release --target ${{ matrix.target }}
-      
-      - name: Rename the binary
-        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
-
-      - name: Upload release asset
-        uses: actions/upload-artifact@v4
-        with:
-          name: shpool-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
-          retention-days: 1
-
   # This job creates the release and uploads all artifacts.
   release:
-    needs: [build-linux, build-macos] # Depends on both build jobs
+    needs: [build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write
