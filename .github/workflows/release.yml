@@ -1,6 +1,6 @@
 # Updated GitHub Actions Workflow: Build and Release
-# This workflow is based on the original user-provided file, with minimal
-# updates to fix deprecated actions and resolve compilation errors.
+# This workflow builds binaries for Linux and macOS, then creates a
+# GitHub Release only when a new version tag is pushed.
 
 name: Build and Release
 
@@ -8,44 +8,36 @@ on:
   push:
     tags:
       - 'v*'  # Triggers the workflow when a new version tag is pushed
-  workflow_dispatch:  # Allows manual execution of the workflow
+  workflow_dispatch:  # Allows manual execution of the workflow (will not create a release)
 
 jobs:
-  build:
+  # Job to build for all Linux targets
+  build-linux:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
-      # Step 1: Checkout the code (Updated to v4)
       - name: Checkout the code
         uses: actions/checkout@v4
 
-      # Step 2: Remove the local toolchain file to use the one from the action.
-      # This is the key fix. It forces the build to use the modern Rust
-      # version installed in the next step, instead of the old version
-      # specified in the repository's rust-toolchain.toml file.
       - name: Remove local rust-toolchain.toml
         run: rm -f rust-toolchain.toml
 
-      # Step 3: Set up Rust toolchain (Updated to a modern action to fix 'cross' install)
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # Step 4: Install musl-tools if building for a musl target (Original logic)
       - name: Install musl-tools for static linking
         if: contains(matrix.target, 'musl')
         run: sudo apt-get update && sudo apt-get install -y musl-tools
 
-      # Step 5: Install 'cross' for cross-compilation (Original logic)
       - name: Install cross for cross-compilation
         if: contains(matrix.target, 'aarch64')
         run: cargo install cross
 
-      # Step 6: Build the binary (Original logic)
       - name: Build binary
         run: |
           if [[ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" || "${{ matrix.target }}" == "aarch64-unknown-linux-musl" ]]; then
@@ -54,11 +46,9 @@ jobs:
             cargo build --release --target ${{ matrix.target }}
           fi
       
-      # Step 7: Rename the binary (Original logic)
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
 
-      # Step 8: Upload release asset (Updated to v4 to fix deprecation error)
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
@@ -66,28 +56,92 @@ jobs:
           path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
           retention-days: 1
 
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # Required by softprops/action-gh-release
+  # Job to build for all macOS targets
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
 
     steps:
-      # Step 1: Download all artifacts (Updated to v4 and consolidated)
+      - name: Checkout the code
+        uses: actions/checkout@v4
+
+      - name: Remove local rust-toolchain.toml
+        run: rm -f rust-toolchain.toml
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+      
+      - name: Rename the binary
+        run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: shpool-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
+          retention-days: 1
+
+  # This job creates the release and uploads all artifacts.
+  release:
+    needs: [build-linux, build-macos] # Depends on both build jobs
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # This condition allows the job to run on tag pushes and manual triggers.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      # We must check out the code to be able to find the latest tag.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history for all tags
+
+      - name: Generate release tag
+        id: generate_tag
+        run: |
+          # Get the base tag name depending on the event type
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            # For pushes, use the tag that triggered the workflow
+            BASE_TAG=${{ github.ref_name }}
+          else
+            # For manual dispatches, get the latest tag from the repo
+            LATEST_TAG=$(git describe --tags --abbrev=0)
+            # This is the corrected logic: it removes everything up to and
+            # including the last hyphen, isolating the base version tag (e.g., 'v1.2.3').
+            # If no hyphen exists, it correctly returns the original tag.
+            BASE_TAG=${LATEST_TAG##*-}
+          fi
+          
+          # Generate the timestamp in UTC for consistency
+          TIMESTAMP=$(date -u +'%y%m%d-%H%M%S')
+          
+          # Combine them into the new tag format
+          NEW_TAG="${TIMESTAMP}-${BASE_TAG}"
+          
+          echo "Generated new tag: $NEW_TAG"
+          echo "NEW_TAG_NAME=$NEW_TAG" >> $GITHUB_ENV
+
       - name: Download all binaries
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      # Step 2: List downloaded files (Original logic, path updated)
       - name: List downloaded files
         run: ls -R artifacts
 
-      # Step 3: Create a release (Updated to v2)
       - name: Create a release
         uses: softprops/action-gh-release@v2
         with:
-          # files path updated to work with the consolidated download
+          # Use the custom tag generated in the previous step
+          tag_name: ${{ env.NEW_TAG_NAME }}
           files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
