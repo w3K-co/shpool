@@ -19,19 +19,25 @@ jobs:
         target: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
 
     steps:
-      - name: Checkout the code
+      - name: Checkout your repository
         uses: actions/checkout@v4
         with:
           repository: w3K-co/shpool # Checkout your forked repository
 
-      # This is the key fix. It checks out the missing 'shpool_pty' directory
-      # from the original repository, as it's required by the Cargo.toml path dependency.
+      # This is the corrected fix. We check out the original repo to a temporary
+      # directory, then move the required dependency folder into the workspace.
+      # This avoids creating nested git repositories, which causes the
+      # "multiple workspace roots" error.
       - name: Checkout patched pty dependency
         uses: actions/checkout@v4
         with:
-          repository: shell-pool/shpool # The original repository
-          path: shpool_pty # Place it in a directory named 'shpool_pty'
-          sparse-checkout: shpool_pty # Only download the contents of the 'shpool_pty' directory
+          repository: shell-pool/shpool
+          path: ./.tmp-dep-checkout
+
+      - name: Move patched dependency into workspace
+        run: |
+          mv ./.tmp-dep-checkout/shpool_pty ./shpool_pty
+          rm -rf ./.tmp-dep-checkout
 
       - name: Remove local rust-toolchain.toml
         run: rm -f rust-toolchain.toml
@@ -75,19 +81,25 @@ jobs:
         target: [x86_64-apple-darwin, aarch64-apple-darwin]
 
     steps:
-      - name: Checkout the code
+      - name: Checkout your repository
         uses: actions/checkout@v4
         with:
           repository: w3K-co/shpool # Checkout your forked repository
 
-      # This is the key fix. It checks out the missing 'shpool_pty' directory
-      # from the original repository, as it's required by the Cargo.toml path dependency.
+      # This is the corrected fix. We check out the original repo to a temporary
+      # directory, then move the required dependency folder into the workspace.
+      # This avoids creating nested git repositories, which causes the
+      # "multiple workspace roots" error.
       - name: Checkout patched pty dependency
         uses: actions/checkout@v4
         with:
-          repository: shell-pool/shpool # The original repository
-          path: shpool_pty # Place it in a directory named 'shpool_pty'
-          sparse-checkout: shpool_pty # Only download the contents of the 'shpool_pty' directory
+          repository: shell-pool/shpool
+          path: ./.tmp-dep-checkout
+
+      - name: Move patched dependency into workspace
+        run: |
+          mv ./.tmp-dep-checkout/shpool_pty ./shpool_pty
+          rm -rf ./.tmp-dep-checkout
 
       - name: Remove local rust-toolchain.toml
         run: rm -f rust-toolchain.toml
