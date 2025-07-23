@@ -21,6 +21,17 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
+        with:
+          repository: w3K-co/shpool # Checkout your forked repository
+
+      # This is the key fix. It checks out the missing 'shpool_pty' directory
+      # from the original repository, as it's required by the Cargo.toml path dependency.
+      - name: Checkout patched pty dependency
+        uses: actions/checkout@v4
+        with:
+          repository: shell-pool/shpool # The original repository
+          path: shpool_pty # Place it in a directory named 'shpool_pty'
+          sparse-checkout: shpool_pty # Only download the contents of the 'shpool_pty' directory
 
       - name: Remove local rust-toolchain.toml
         run: rm -f rust-toolchain.toml
@@ -66,6 +77,17 @@ jobs:
     steps:
       - name: Checkout the code
         uses: actions/checkout@v4
+        with:
+          repository: w3K-co/shpool # Checkout your forked repository
+
+      # This is the key fix. It checks out the missing 'shpool_pty' directory
+      # from the original repository, as it's required by the Cargo.toml path dependency.
+      - name: Checkout patched pty dependency
+        uses: actions/checkout@v4
+        with:
+          repository: shell-pool/shpool # The original repository
+          path: shpool_pty # Place it in a directory named 'shpool_pty'
+          sparse-checkout: shpool_pty # Only download the contents of the 'shpool_pty' directory
 
       - name: Remove local rust-toolchain.toml
         run: rm -f rust-toolchain.toml
@@ -75,7 +97,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # With the dependency updated in Cargo.toml, no special flags are needed.
+      # With the dependency fixed in Cargo.toml, no special flags are needed.
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
       
