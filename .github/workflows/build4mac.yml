@@ -22,11 +22,9 @@ jobs:
           repository: shell-pool/shpool
           path: original-repo
 
-      # Detailed directory listing for debugging
-      - name: List original-repo contents
+      - name: List all files in original-repo for debugging
         run: ls -lR original-repo
 
-      # Check if shpool_pty exists and move it, else fail with clear error
       - name: Move shpool_pty directory if present
         run: |
           if [ -d original-repo/shpool_pty ]; then
