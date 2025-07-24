@@ -23,14 +23,13 @@ jobs:
           repository: w3K-co/shpool
 
       # Step 2: Download and extract the patched pty dependency
-      # This uses curl and tar to reliably get the subdirectory.
-      # The wildcard 'shpool-*' is used to handle the dynamic directory
-      # name created by GitHub's tarball generation.
+      # This uses curl and tar to reliably get the subdirectory without
+      # causing git or svn client issues.
       - name: Download and extract patched dependency
         run: |
           curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar xz
-          mv shpool-*/shpool_pty ./
-          rm -rf shpool-*
+          mv shpool-master/shpool_pty ./
+          rm -rf shpool-master
 
       # Step 3: Create Cargo config to patch the dependency
       # This tells Cargo to use the local version of shpool_pty we just downloaded
