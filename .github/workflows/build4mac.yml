@@ -22,11 +22,19 @@ jobs:
           repository: shell-pool/shpool
           path: original-repo
 
-      # Verify directory structure and move shpool_pty
-      - name: Move shpool_pty directory
+      # Detailed directory listing for debugging
+      - name: List original-repo contents
+        run: ls -lR original-repo
+
+      # Check if shpool_pty exists and move it, else fail with clear error
+      - name: Move shpool_pty directory if present
         run: |
-          ls -lR original-repo  # Debug directory structure
-          mv original-repo/shpool_pty ./
+          if [ -d original-repo/shpool_pty ]; then
+            mv original-repo/shpool_pty ./
+          else
+            echo "ERROR: shpool_pty not found in original-repo"
+            exit 1
+          fi
 
       - name: Create .cargo/config.toml for patch
         run: |
@@ -42,7 +50,7 @@ jobs:
 
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
-      
+
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
 
