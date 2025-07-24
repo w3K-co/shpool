@@ -23,11 +23,11 @@ jobs:
           repository: w3K-co/shpool
 
       # Step 2: Download and extract the patched pty dependency
-      # This is the corrected, robust method. It uses tar's ability to
-      # extract a specific subdirectory, avoiding all shell expansion issues.
+      # This is the corrected, robust method. It uses a wildcard (*) in the
+      # path to handle the dynamic directory name created by GitHub's tarball.
       - name: Download and extract patched dependency
         run: |
-          curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar -xz --strip-components=1 "shpool-master/shpool_pty"
+          curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar -xz --strip-components=1 "shpool-*/shpool_pty"
 
       # Step 3: Create Cargo config to patch the dependency
       # This tells Cargo to use the local version of shpool_pty we just downloaded
