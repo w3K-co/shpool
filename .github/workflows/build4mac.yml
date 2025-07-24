@@ -22,17 +22,19 @@ jobs:
           repository: shell-pool/shpool
           path: original-repo
 
-      # Correct path to shpool_pty is crates/shpool_pty
-      - name: Extract shpool_pty directory
+      # Use libshpool instead of shpool_pty
+      - name: Extract libshpool directory
         run: |
-          mv original-repo/crates/shpool_pty ./
-          ls -l shpool_pty  # Verify it exists
+          mv original-repo/libshpool ./
+          ls -l libshpool  # Verify it exists
 
       - name: Create .cargo/config.toml for patch
         run: |
           mkdir -p .cargo
           echo '[patch.crates-io]' > .cargo/config.toml
-          echo 'shpool_pty = { path = "shpool_pty" }' >> .cargo/config.toml
+          # Patch both dependencies that might be needed
+          echo 'libshpool = { path = "libshpool" }' >> .cargo/config.toml
+          echo 'shpool_pty = { path = "libshpool" }' >> .cargo/config.toml
           cat .cargo/config.toml
 
       - name: Set up Rust toolchain
@@ -52,3 +54,4 @@ jobs:
           name: shpool-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
           retention-days: 1
+          
