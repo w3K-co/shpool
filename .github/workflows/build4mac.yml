@@ -22,17 +22,16 @@ jobs:
         with:
           repository: w3K-co/shpool
 
-      # Step 2: Install Subversion (svn)
-      # svn is a reliable tool for downloading a specific subdirectory from a Git repository.
-      - name: Install svn
-        run: brew install svn
+      # Step 2: Download and extract the patched pty dependency
+      # This uses curl and tar to reliably get the subdirectory without
+      # causing git or svn client issues.
+      - name: Download and extract patched dependency
+        run: |
+          curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar xz
+          mv shpool-master/shpool_pty ./
+          rm -rf shpool-master
 
-      # Step 3: Download the patched pty dependency using svn
-      # This is more robust than cloning the entire repository and avoids workspace issues.
-      - name: Download patched pty dependency
-        run: svn export https://github.com/shell-pool/shpool/trunk/shpool_pty
-
-      # Step 4: Create Cargo config to patch the dependency
+      # Step 3: Create Cargo config to patch the dependency
       # This tells Cargo to use the local version of shpool_pty we just downloaded
       # instead of trying to download it from crates.io.
       - name: Create .cargo/config.toml for patch
@@ -43,21 +42,21 @@ jobs:
           echo "Created .cargo/config.toml:"
           cat .cargo/config.toml
 
-      # Step 5: Set up the Rust toolchain
+      # Step 4: Set up the Rust toolchain
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # Step 6: Build the binary. No special flags are needed now.
+      # Step 5: Build the binary. No special flags are needed now.
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
       
-      # Step 7: Rename the binary for upload
+      # Step 6: Rename the binary for upload
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
 
-      # Step 8: Upload the artifact
+      # Step 7: Upload the artifact
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
