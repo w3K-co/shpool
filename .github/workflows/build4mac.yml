@@ -22,11 +22,11 @@ jobs:
           repository: shell-pool/shpool
           path: original-repo
 
-      # Verify directory structure and move shpool_pty
-      - name: Move shpool_pty directory
+      # Correct path to shpool_pty is crates/shpool_pty
+      - name: Extract shpool_pty directory
         run: |
-          ls -lR original-repo  # Debug directory structure
-          mv original-repo/shpool_pty ./
+          mv original-repo/crates/shpool_pty ./
+          ls -l shpool_pty  # Verify it exists
 
       - name: Create .cargo/config.toml for patch
         run: |
@@ -52,4 +52,3 @@ jobs:
           name: shpool-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
           retention-days: 1
-    
