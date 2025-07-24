@@ -27,8 +27,10 @@ jobs:
 
       - name: Move shpool_pty directory if present
         run: |
-          if [ -d original-repo/shpool_pty ]; then
-            mv original-repo/shpool_pty ./
+          SHPOOL_PTY_PATH=$(find original-repo -type d -name shpool_pty | head -n 1)
+          if [ -n "$SHPOOL_PTY_PATH" ]; then
+            mv "$SHPOOL_PTY_PATH" ./
+            echo "Moved shpool_pty from $SHPOOL_PTY_PATH to ./"
           else
             echo "ERROR: shpool_pty not found in original-repo"
             exit 1
