@@ -52,3 +52,4 @@ jobs:
           name: shpool-${{ matrix.target }}
           path: target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
           retention-days: 1
+    
