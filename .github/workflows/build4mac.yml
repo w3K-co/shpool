@@ -3,7 +3,7 @@
 # It resolves the shpool_pty dependency issue by fetching the patched
 # version from the original repository and using a Cargo [patch] directive.
 
-name: Build and Release for macOS
+name: Build and Release (macOS)
 
 on:
   workflow_dispatch:  # Allows manual execution of the workflow
@@ -22,19 +22,21 @@ jobs:
         with:
           repository: w3K-co/shpool
 
-      # Step 2: Checkout the patched 'shpool_pty' from the original repo
-      # This directory is missing from the fork but required for the build.
-      - name: Checkout patched pty dependency
-        uses: actions/checkout@v4
-        with:
-          repository: shell-pool/shpool
-          path: shpool_pty # Check it out into a directory named 'shpool_pty'
-          sparse-checkout: shpool_pty # Only download the contents of that directory
+      # Step 2: Clone the original repo to get the patched dependency.
+      # We clone it to a temporary directory outside the workspace to avoid
+      # nested git repositories, which caused the previous errors.
+      - name: Clone original repo for dependency
+        run: git clone --depth 1 https://github.com/shell-pool/shpool.git ../shell-pool-temp
 
-      # Step 3: Create Cargo config to patch the dependency
-      # This tells Cargo to use the local version of shpool_pty we just checked out
-      # instead of trying to download it from crates.io. This is the official
-      # way the original repository solves this problem.
+      # Step 3: Move the dependency into the workspace and clean up the clone.
+      - name: Move patched dependency into workspace
+        run: |
+          mv ../shell-pool-temp/shpool_pty ./
+          rm -rf ../shell-pool-temp
+
+      # Step 4: Create Cargo config to patch the dependency
+      # This tells Cargo to use the local version of shpool_pty we just moved
+      # instead of trying to download it from crates.io.
       - name: Create .cargo/config.toml for patch
         run: |
           mkdir -p .cargo
@@ -43,21 +45,21 @@ jobs:
           echo "Created .cargo/config.toml:"
           cat .cargo/config.toml
 
-      # Step 4: Set up the Rust toolchain
+      # Step 5: Set up the Rust toolchain
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # Step 5: Build the binary. No special flags are needed now.
+      # Step 6: Build the binary. No special flags are needed now.
       - name: Build binary
         run: cargo build --release --target ${{ matrix.target }}
       
-      # Step 6: Rename the binary for upload
+      # Step 7: Rename the binary for upload
       - name: Rename the binary
         run: mv target/${{ matrix.target }}/release/shpool target/${{ matrix.target }}/release/shpool-${{ matrix.target }}
 
-      # Step 7: Upload the artifact
+      # Step 8: Upload the artifact
       - name: Upload release asset
         uses: actions/upload-artifact@v4
         with:
