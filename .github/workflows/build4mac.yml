@@ -16,15 +16,17 @@ jobs:
         with:
           repository: w3K-co/shpool
 
-      # Fixed checkout for shpool_pty - get entire repo then extract directory
       - name: Checkout original repository
         uses: actions/checkout@v4
         with:
           repository: shell-pool/shpool
           path: original-repo
 
-      - name: Extract shpool_pty directory
-        run: mv original-repo/shpool_pty ./
+      # Verify directory structure and move shpool_pty
+      - name: Move shpool_pty directory
+        run: |
+          ls -lR original-repo  # Debug directory structure
+          mv original-repo/shpool_pty ./
 
       - name: Create .cargo/config.toml for patch
         run: |
