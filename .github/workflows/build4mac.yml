@@ -22,20 +22,18 @@ jobs:
         with:
           repository: w3K-co/shpool
 
-      # Step 2: Clone the original repo to get the patched dependency.
-      # We clone it to a temporary directory outside the workspace to avoid
-      # nested git repositories, which caused the previous errors.
-      - name: Clone original repo for dependency
-        run: git clone --depth 1 https://github.com/shell-pool/shpool.git ../shell-pool-temp
+      # Step 2: Install Subversion (svn)
+      # svn is a reliable tool for downloading a specific subdirectory from a Git repository.
+      - name: Install svn
+        run: brew install svn
 
-      # Step 3: Move the dependency into the workspace and clean up the clone.
-      - name: Move patched dependency into workspace
-        run: |
-          mv ../shell-pool-temp/shpool_pty ./
-          rm -rf ../shell-pool-temp
+      # Step 3: Download the patched pty dependency using svn
+      # This is more robust than cloning the entire repository and avoids workspace issues.
+      - name: Download patched pty dependency
+        run: svn export https://github.com/shell-pool/shpool/trunk/shpool_pty
 
       # Step 4: Create Cargo config to patch the dependency
-      # This tells Cargo to use the local version of shpool_pty we just moved
+      # This tells Cargo to use the local version of shpool_pty we just downloaded
       # instead of trying to download it from crates.io.
       - name: Create .cargo/config.toml for patch
         run: |
