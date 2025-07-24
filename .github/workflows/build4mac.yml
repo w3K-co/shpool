@@ -3,7 +3,7 @@
 # It resolves the shpool_pty dependency issue by fetching the patched
 # version from the original repository and using a Cargo [patch] directive.
 
-name: Build and Release (macOS)
+name: Build and Release for macOS
 
 on:
   workflow_dispatch:  # Allows manual execution of the workflow
@@ -22,21 +22,19 @@ jobs:
         with:
           repository: w3K-co/shpool
 
-      # Step 2: Download and extract the patched pty dependency
-      # This version uses a robust shell pattern to navigate into the
-      # extracted directory and move the required folder, avoiding
-      # issues with tar wildcards and pathing.
-      - name: Download and extract patched dependency
-        run: |
-          curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar xz
-          cd shpool-*
-          mv shpool_pty ..
-          cd ..
-          rm -rf shpool-*
+      # Step 2: Checkout the patched 'shpool_pty' from the original repo
+      # This directory is missing from the fork but required for the build.
+      - name: Checkout patched pty dependency
+        uses: actions/checkout@v4
+        with:
+          repository: shell-pool/shpool
+          path: shpool_pty # Check it out into a directory named 'shpool_pty'
+          sparse-checkout: shpool_pty # Only download the contents of that directory
 
       # Step 3: Create Cargo config to patch the dependency
-      # This tells Cargo to use the local version of shpool_pty we just downloaded
-      # instead of trying to download it from crates.io.
+      # This tells Cargo to use the local version of shpool_pty we just checked out
+      # instead of trying to download it from crates.io. This is the official
+      # way the original repository solves this problem.
       - name: Create .cargo/config.toml for patch
         run: |
           mkdir -p .cargo
