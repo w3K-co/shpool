@@ -23,14 +23,11 @@ jobs:
           repository: w3K-co/shpool
 
       # Step 2: Download and extract the patched pty dependency
-      # This version dynamically finds the extracted directory name to avoid
-      # issues with shell wildcard expansion.
+      # This is the corrected, robust method. It uses tar's ability to
+      # extract a specific subdirectory, avoiding all shell expansion issues.
       - name: Download and extract patched dependency
         run: |
-          curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar xz
-          EXTRACTED_DIR=$(find . -name "shpool-*" -type d -maxdepth 1)
-          mv "$EXTRACTED_DIR/shpool_pty" ./
-          rm -rf "$EXTRACTED_DIR"
+          curl -L https://github.com/shell-pool/shpool/archive/refs/heads/master.tar.gz | tar -xz --strip-components=1 "shpool-master/shpool_pty"
 
       # Step 3: Create Cargo config to patch the dependency
       # This tells Cargo to use the local version of shpool_pty we just downloaded
